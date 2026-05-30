@@ -1,0 +1,158 @@
+/* DANO — global styles
+ * Aesthetic: terminal-inspired, minimal, monospace-forward. Dark by default,
+ * with a warm paper light theme. Theme is toggled via [data-theme] on <html>.
+ */
+
+:root {
+  /* Dark theme (default) */
+  --bg: #0d0f12;
+  --bg-elev: #14171c;
+  --bg-inset: #0a0c0f;
+  --fg: #d6dae0;
+  --fg-dim: #8a929c;
+  --fg-faint: #5b626c;
+  --border: #232830;
+  --border-soft: #1a1e24;
+  --accent: #6ee7a8;
+  --accent-dim: #3f7d5d;
+  --danger: #f0707a;
+  --dot: rgba(255, 255, 255, 0.035);
+  --selection: rgba(110, 231, 168, 0.22);
+
+  --font-mono: "JetBrains Mono", "SFMono-Regular", "SF Mono", "Cascadia Code",
+    "Fira Code", ui-monospace, "Liberation Mono", Menlo, Consolas, monospace;
+
+  --radius: 6px;
+  --sidebar-w: 200px;
+  --list-w: 260px;
+
+  color-scheme: dark;
+}
+
+[data-theme="light"] {
+  --bg: #f5f3ec;
+  --bg-elev: #fffdf7;
+  --bg-inset: #ece9e0;
+  --fg: #1c1f23;
+  --fg-dim: #5c636b;
+  --fg-faint: #969ba2;
+  --border: #d9d6cb;
+  --border-soft: #e6e3d9;
+  --accent: #1f8a52;
+  --accent-dim: #9cc7ad;
+  --danger: #c0392b;
+  --dot: rgba(0, 0, 0, 0.04);
+  --selection: rgba(31, 138, 82, 0.16);
+
+  color-scheme: light;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--fg);
+  background-color: var(--bg);
+  background-image: radial-gradient(var(--dot) 1px, transparent 1px);
+  background-size: 16px 16px;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+  overflow: hidden;
+  user-select: none;
+}
+
+::selection {
+  background: var(--selection);
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 6px;
+  border: 2px solid var(--bg);
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--fg-faint);
+}
+
+button {
+  font-family: inherit;
+  font-size: inherit;
+  color: inherit;
+  background: none;
+  border: none;
+  cursor: pointer;
+}
+
+input,
+textarea {
+  font-family: inherit;
+  color: inherit;
+}
+
+/* CodeMirror theming so the editor matches the DANO aesthetic */
+.cm-editor {
+  height: 100%;
+  background: transparent;
+  color: var(--fg);
+  font-size: 14px;
+}
+.cm-editor.cm-focused {
+  outline: none;
+}
+.cm-scroller {
+  font-family: var(--font-mono);
+  line-height: 1.7;
+  padding: 4px 0;
+}
+.cm-content {
+  caret-color: var(--accent);
+  user-select: text;
+  max-width: 760px;
+}
+.cm-cursor {
+  border-left-color: var(--accent);
+}
+.cm-selectionBackground,
+.cm-content ::selection {
+  background: var(--selection) !important;
+}
+.cm-line {
+  padding: 0;
+}
+/* Markdown syntax accents */
+.cm-editor .tok-heading,
+.cm-editor .cm-heading {
+  color: var(--accent);
+  font-weight: 700;
+}
+.cm-editor .tok-link {
+  color: var(--accent);
+}
+.cm-editor .tok-quote {
+  color: var(--fg-dim);
+  font-style: italic;
+}
+.cm-editor .tok-monospace {
+  color: var(--fg-dim);
+}
+.cm-editor .tok-meta {
+  color: var(--fg-faint);
+}
