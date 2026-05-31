@@ -27,3 +27,23 @@ export function relativeDue(ms: number): { label: string; tone: "over" | "soon" 
   const tone = days < 0 ? "over" : days <= 2 ? "soon" : "later";
   return { label, tone };
 }
+
+export function startOfDay(ms: number): number {
+  const d = new Date(ms);
+  return new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+}
+
+export function sameDay(a: number, b: number): boolean {
+  return startOfDay(a) === startOfDay(b);
+}
+
+export function isToday(ms: number): boolean {
+  return sameDay(ms, Date.now());
+}
+
+const WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+export const weekdayLabels = WEEKDAYS;
+
+export function dayLabel(ms: number): string {
+  return new Date(ms).toLocaleDateString([], { weekday: "short", month: "short", day: "numeric" });
+}

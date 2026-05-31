@@ -225,6 +225,7 @@ export async function listLinks(resourceId: string): Promise<DetailedLink[]> {
               WHEN 'area' THEN (SELECT name FROM areas WHERE id = l.target_id)
               WHEN 'project' THEN (SELECT name FROM projects WHERE id = l.target_id)
               WHEN 'task' THEN (SELECT title FROM tasks WHERE id = l.target_id)
+              WHEN 'contact' THEN (SELECT name FROM contacts WHERE id = l.target_id)
             END AS label
        FROM resource_links l
       WHERE l.resource_id = $1
@@ -282,3 +283,203 @@ export async function activeProjects(limit = 20): Promise<
 }
 
 export type { ProjectStatus, TaskStatus };
+
+/* ---------- Events + calendar ---------- */
+
+import type { CalEvent, CalItem } from "./types";
+
+export async function createEvent(startAt: number, title = ""): Promise<CalEvent> {
+  const conn = await db();
+  const t = now();
+  const ev: CalEvent = {
+    id: crypto.randomUUID(), title, start_at: startAt, end_at: null,
+    all_day: 1, notes: "", archived: 0, created_at: t, updated_at: t,
+  };
+  await conn.execute(
+    "INSERT INTO events (id, title, start_at, end_at, all_day, notes, archived, created_at, updated_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)",
+    [ev.id, ev.title, ev.start_at, ev.end_at, ev.all_day, ev.notes, ev.archived, ev.created_at, ev.updated_at],
+  );
+  return ev;
+}
+
+export async function updateEvent(
+  id: string,
+  patch: Partial<Pick<CalEvent, "title" | "start_at" | "end_at" | "all_day" | "notes" | "archived">>,
+): Promise<void> {
+  const conn = await db();
+  const { clause, values, next } = setClause(patch);
+  if (!clause) return;
+  values.push(now(), id);
+  await conn.execute(
+    "UPDATE events SET " + clause + ", updated_at = $" + next + " WHERE id = $" + (next + 1),
+    values,
+  );
+}
+
+export async function deleteEvent(id: string): Promise<void> {
+  const conn = await db();
+  await conn.execute("DELETE FROM events WHERE id = $1", [id]);
+}
+
+export async function getEvent(id: string): Promise<CalEvent | null> {
+  const conn = await db();
+  const rows = await conn.select<CalEvent[]>("SELECT * FROM events WHERE id = $1", [id]);
+  return rows[0] ?? null;
+}
+
+// All dated items (events + project/task due dates) within [start, end).
+export async function calendarItems(start: number, end: number): Promise<CalItem[]> {
+  const conn = await db();
+  const rows = await conn.select<
+    { kind: "event" | "project" | "task"; id: string; title: string; at: number; context: string; area_id: string | null }[]
+  >(
+    `SELECT 'event' AS kind, e.id AS id, e.title AS title, e.start_at AS at, '' AS context, NULL AS area_id
+       FROM events e
+      WHERE e.archived = 0 AND e.start_at >= $1 AND e.start_at < $2
+     UNION ALL
+     SELECT 'project' AS kind, p.id AS id, p.name AS title, p.due_at AS at, a.name AS context, p.area_id AS area_id
+       FROM projects p JOIN areas a ON a.id = p.area_id
+      WHERE p.archived = 0 AND p.due_at IS NOT NULL AND p.due_at >= $1 AND p.due_at < $2
+     UNION ALL
+     SELECT 'task' AS kind, t.id AS id, t.title AS title, t.due_at AS at, a.name || ' / ' || p.name AS context, p.area_id AS area_id
+       FROM tasks t JOIN projects p ON p.id = t.project_id JOIN areas a ON a.id = p.area_id
+      WHERE t.archived = 0 AND t.due_at IS NOT NULL AND t.due_at >= $1 AND t.due_at < $2
+     ORDER BY at ASC`,
+    [start, end],
+  );
+  return rows.map((r) => ({
+    kind: r.kind, id: r.id, title: r.title, at: r.at, context: r.context,
+    areaId: r.area_id ?? undefined,
+  }));
+}
+
+export type { CalEvent, CalItem };
+
+/* ---------- CRM: contacts ---------- */
+
+import type { Contact, ContactDate } from "./types";
+
+export async function listContacts(archived = false): Promise<Contact[]> {
+  const conn = await db();
+  return conn.select<Contact[]>(
+    "SELECT * FROM contacts WHERE archived = $1 ORDER BY name COLLATE NOCASE ASC",
+    [archived ? 1 : 0],
+  );
+}
+export async function getContact(id: string): Promise<Contact | null> {
+  const conn = await db();
+  const rows = await conn.select<Contact[]>("SELECT * FROM contacts WHERE id = $1", [id]);
+  return rows[0] ?? null;
+}
+export async function createContact(name = ""): Promise<Contact> {
+  const conn = await db();
+  const t = now();
+  const c: Contact = { id: crypto.randomUUID(), name, notes: "", archived: 0, created_at: t, updated_at: t };
+  await conn.execute(
+    "INSERT INTO contacts (id, name, notes, archived, created_at, updated_at) VALUES ($1,$2,$3,$4,$5,$6)",
+    [c.id, c.name, c.notes, c.archived, c.created_at, c.updated_at],
+  );
+  return c;
+}
+export async function updateContact(id: string, patch: Partial<Pick<Contact, "name" | "notes" | "archived">>): Promise<void> {
+  const conn = await db();
+  const { clause, values, next } = setClause(patch);
+  if (!clause) return;
+  values.push(now(), id);
+  await conn.execute(
+    "UPDATE contacts SET " + clause + ", updated_at = $" + next + " WHERE id = $" + (next + 1),
+    values,
+  );
+}
+export async function deleteContact(id: string): Promise<void> {
+  const conn = await db();
+  await conn.execute("DELETE FROM contact_dates WHERE contact_id = $1", [id]);
+  await conn.execute("DELETE FROM contact_links WHERE contact_id = $1", [id]);
+  await conn.execute("DELETE FROM resource_links WHERE target_type = 'contact' AND target_id = $1", [id]);
+  await conn.execute("DELETE FROM contacts WHERE id = $1", [id]);
+}
+export async function listAllContacts(): Promise<{ id: string; name: string }[]> {
+  const conn = await db();
+  return conn.select("SELECT id, name FROM contacts WHERE archived = 0 ORDER BY name COLLATE NOCASE ASC");
+}
+
+/* ---------- CRM: contact dates ---------- */
+
+export async function listContactDates(contactId: string): Promise<ContactDate[]> {
+  const conn = await db();
+  return conn.select<ContactDate[]>(
+    "SELECT * FROM contact_dates WHERE contact_id = $1 ORDER BY date_at ASC",
+    [contactId],
+  );
+}
+export async function addContactDate(contactId: string, label: string, dateAt: number): Promise<ContactDate> {
+  const conn = await db();
+  const cd: ContactDate = { id: crypto.randomUUID(), contact_id: contactId, label, date_at: dateAt, recurring: 1, created_at: now() };
+  await conn.execute(
+    "INSERT INTO contact_dates (id, contact_id, label, date_at, recurring, created_at) VALUES ($1,$2,$3,$4,$5,$6)",
+    [cd.id, cd.contact_id, cd.label, cd.date_at, cd.recurring, cd.created_at],
+  );
+  return cd;
+}
+export async function updateContactDate(id: string, patch: Partial<Pick<ContactDate, "label" | "date_at" | "recurring">>): Promise<void> {
+  const conn = await db();
+  const { clause, values, next } = setClause(patch);
+  if (!clause) return;
+  values.push(id);
+  await conn.execute("UPDATE contact_dates SET " + clause + " WHERE id = $" + next, values);
+}
+export async function deleteContactDate(id: string): Promise<void> {
+  const conn = await db();
+  await conn.execute("DELETE FROM contact_dates WHERE id = $1", [id]);
+}
+
+// All contact dates joined with the contact name (for calendar/dashboard).
+export async function allContactDates(): Promise<
+  { id: string; contact_id: string; contact_name: string; label: string; date_at: number; recurring: number }[]
+> {
+  const conn = await db();
+  return conn.select(
+    `SELECT d.id AS id, d.contact_id AS contact_id, c.name AS contact_name,
+            d.label AS label, d.date_at AS date_at, d.recurring AS recurring
+       FROM contact_dates d JOIN contacts c ON c.id = d.contact_id
+      WHERE c.archived = 0`,
+  );
+}
+
+/* ---------- CRM: contact ↔ project links ---------- */
+
+export async function listContactProjects(contactId: string): Promise<{ link_id: string; project_id: string; name: string; area_name: string }[]> {
+  const conn = await db();
+  return conn.select(
+    `SELECT l.id AS link_id, p.id AS project_id, p.name AS name, a.name AS area_name
+       FROM contact_links l JOIN projects p ON p.id = l.project_id JOIN areas a ON a.id = p.area_id
+      WHERE l.contact_id = $1 ORDER BY a.name, p.name`,
+    [contactId],
+  );
+}
+export async function listProjectContacts(projectId: string): Promise<{ id: string; name: string }[]> {
+  const conn = await db();
+  return conn.select(
+    `SELECT c.id AS id, c.name AS name FROM contact_links l JOIN contacts c ON c.id = l.contact_id
+      WHERE l.project_id = $1 AND c.archived = 0 ORDER BY c.name COLLATE NOCASE ASC`,
+    [projectId],
+  );
+}
+export async function addContactProject(contactId: string, projectId: string): Promise<void> {
+  const conn = await db();
+  const existing = await conn.select<{ c: number }[]>(
+    "SELECT COUNT(*) AS c FROM contact_links WHERE contact_id = $1 AND project_id = $2",
+    [contactId, projectId],
+  );
+  if ((existing[0]?.c ?? 0) > 0) return;
+  await conn.execute(
+    "INSERT INTO contact_links (id, contact_id, project_id, created_at) VALUES ($1,$2,$3,$4)",
+    [crypto.randomUUID(), contactId, projectId, now()],
+  );
+}
+export async function removeContactProject(linkId: string): Promise<void> {
+  const conn = await db();
+  await conn.execute("DELETE FROM contact_links WHERE id = $1", [linkId]);
+}
+
+export type { Contact, ContactDate };

@@ -27,6 +27,26 @@
       <span class="label">Dashboard</span>
     </button>
 
+    <button
+      class="row lvl0"
+      class:active={store.view === "calendar"}
+      onclick={() => store.openCalendar()}
+    >
+      <span class="chev"></span>
+      <span class="glyph">▣</span>
+      <span class="label">Calendar</span>
+    </button>
+
+    <button
+      class="row lvl0"
+      class:active={store.view === "contacts" || store.view === "contact"}
+      onclick={() => store.openContacts()}
+    >
+      <span class="chev"></span>
+      <span class="glyph">☻</span>
+      <span class="label">Contacts</span>
+    </button>
+
     <div class="section-head">
       <span>Areas</span>
       <button class="add" title="New area" onclick={() => store.addArea()}>+</button>

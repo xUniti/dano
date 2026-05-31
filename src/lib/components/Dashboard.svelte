@@ -70,10 +70,12 @@
         <ul class="list">
           {#each store.dashboard.upcoming as it (it.kind + it.id)}
             {@const due = relativeDue(it.due_at)}
-            <li class="item">
-              <span class="kind {it.kind}">{it.kind === "task" ? "□" : "◆"}</span>
-              <span class="it-main"><span class="it-title">{it.title || "Untitled"}</span><span class="it-ctx">{it.context}</span></span>
-              <span class="due {due.tone}">{due.label}</span>
+            <li>
+              <button class="item proc" onclick={() => { if (it.kind === "contactdate" && it.contactId) store.openContact(it.contactId, "dashboard"); }} disabled={it.kind !== "contactdate"}>
+                <span class="kind {it.kind}">{it.kind === "task" ? "□" : it.kind === "contactdate" ? "♥" : "◆"}</span>
+                <span class="it-main"><span class="it-title">{it.title || "Untitled"}</span><span class="it-ctx">{it.context}</span></span>
+                <span class="due {due.tone}">{due.label}</span>
+              </button>
             </li>
           {/each}
         </ul>

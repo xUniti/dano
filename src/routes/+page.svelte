@@ -6,6 +6,9 @@
   import ResourcesLibrary from "$lib/components/ResourcesLibrary.svelte";
   import ResourceEditor from "$lib/components/ResourceEditor.svelte";
   import ArchiveView from "$lib/components/ArchiveView.svelte";
+  import Calendar from "$lib/components/Calendar.svelte";
+  import ContactsLibrary from "$lib/components/ContactsLibrary.svelte";
+  import ContactEditor from "$lib/components/ContactEditor.svelte";
   import { store } from "$lib/store.svelte";
 </script>
 
@@ -15,6 +18,14 @@
   <main class="main">
     {#if store.view === "dashboard"}
       <Dashboard />
+    {:else if store.view === "calendar"}
+      <Calendar />
+    {:else if store.view === "contacts"}
+      <ContactsLibrary />
+    {:else if store.view === "contact"}
+      {#key store.activeContactId}
+        <ContactEditor />
+      {/key}
     {:else if store.view === "project"}
       <ProjectView />
     {:else if store.view === "area"}

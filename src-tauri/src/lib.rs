@@ -75,6 +75,59 @@ pub fn run() {
             );",
             kind: MigrationKind::Up,
         },
+        Migration {
+            version: 6,
+            description: "create_events",
+            sql: "CREATE TABLE IF NOT EXISTS events (
+                id TEXT PRIMARY KEY,
+                title TEXT NOT NULL DEFAULT '',
+                start_at INTEGER NOT NULL,
+                end_at INTEGER,
+                all_day INTEGER NOT NULL DEFAULT 1,
+                notes TEXT NOT NULL DEFAULT '',
+                archived INTEGER NOT NULL DEFAULT 0,
+                created_at INTEGER NOT NULL,
+                updated_at INTEGER NOT NULL
+            );",
+            kind: MigrationKind::Up,
+        },
+        Migration {
+            version: 7,
+            description: "create_contacts",
+            sql: "CREATE TABLE IF NOT EXISTS contacts (
+                id TEXT PRIMARY KEY,
+                name TEXT NOT NULL DEFAULT '',
+                notes TEXT NOT NULL DEFAULT '',
+                archived INTEGER NOT NULL DEFAULT 0,
+                created_at INTEGER NOT NULL,
+                updated_at INTEGER NOT NULL
+            );",
+            kind: MigrationKind::Up,
+        },
+        Migration {
+            version: 8,
+            description: "create_contact_dates",
+            sql: "CREATE TABLE IF NOT EXISTS contact_dates (
+                id TEXT PRIMARY KEY,
+                contact_id TEXT NOT NULL,
+                label TEXT NOT NULL DEFAULT 'Birthday',
+                date_at INTEGER NOT NULL,
+                recurring INTEGER NOT NULL DEFAULT 1,
+                created_at INTEGER NOT NULL
+            );",
+            kind: MigrationKind::Up,
+        },
+        Migration {
+            version: 9,
+            description: "create_contact_links",
+            sql: "CREATE TABLE IF NOT EXISTS contact_links (
+                id TEXT PRIMARY KEY,
+                contact_id TEXT NOT NULL,
+                project_id TEXT NOT NULL,
+                created_at INTEGER NOT NULL
+            );",
+            kind: MigrationKind::Up,
+        },
     ];
 
     tauri::Builder::default()

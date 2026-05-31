@@ -1,20 +1,15 @@
 <script lang="ts">
   import { store } from "$lib/store.svelte";
-  import { toDateInput, fromDateInput, relativeDue } from "$lib/date";
+  import { relativeDue } from "$lib/date";
+  import DatePicker from "$lib/components/DatePicker.svelte";
 
   const project = $derived(store.activeProject);
 
   function onName(e: Event) {
     if (project) store.renameProject(project.id, (e.target as HTMLInputElement).value);
   }
-  function onDue(e: Event) {
-    if (project) store.setProjectDue(project.id, fromDateInput((e.target as HTMLInputElement).value));
-  }
   function onTaskTitle(id: string, e: Event) {
     store.renameTask(id, (e.target as HTMLInputElement).value);
-  }
-  function onTaskDue(id: string, e: Event) {
-    store.setTaskDue(id, fromDateInput((e.target as HTMLInputElement).value));
   }
 </script>
 
@@ -38,7 +33,7 @@
         </button>
         <label class="due-field">
           due
-          <input type="date" value={toDateInput(project.due_at)} onchange={onDue} />
+          <DatePicker value={project.due_at} onpick={(ms) => store.setProjectDue(project.id, ms)} />
         </label>
       </div>
     </header>
@@ -70,11 +65,24 @@
                 {@const due = relativeDue(t.due_at)}
                 <span class="tdue {due.tone}">{due.label}</span>
               {/if}
-              <input class="tdate" type="date" value={toDateInput(t.due_at)} onchange={(e) => onTaskDue(t.id, e)} title="Due date" />
+              <DatePicker compact value={t.due_at} onpick={(ms) => store.setTaskDue(t.id, ms)} />
               <button class="tdel" onclick={() => store.deleteTask(t.id)} title="Delete task">×</button>
             </li>
           {/each}
         </ul>
+      {/if}
+
+      {#if store.projectContacts.length}
+        <div class="people">
+          <div class="r-head"><span class="r-title-h">People</span></div>
+          <div class="ppl">
+            {#each store.projectContacts as c (c.id)}
+              <button class="pchip" onclick={() => store.openContact(c.id, "project")}>
+                <span class="pav">{(c.name.trim()[0] || "?").toUpperCase()}</span>{c.name.trim() || "Unnamed"}
+              </button>
+            {/each}
+          </div>
+        </div>
       {/if}
 
       <div class="resources">
@@ -143,7 +151,7 @@
     border-radius: var(--radius); transition: background 0.12s;
   }
   .task:hover { background: var(--bg-elev); }
-  .task:hover .tdel, .task:hover .tdate { opacity: 1; }
+  .task:hover .tdel { opacity: 1; }
   .check { color: var(--fg-faint); font-size: 15px; width: 20px; flex: 0 0 auto; }
   .task.done .check { color: var(--accent); }
   .ttitle {
@@ -155,15 +163,15 @@
   .tdue { font-size: 10.5px; color: var(--fg-dim); flex: 0 0 auto; }
   .tdue.soon { color: var(--accent); }
   .tdue.over { color: var(--danger); }
-  .tdate {
-    background: transparent; color: var(--fg-faint); border: 1px solid var(--border);
-    border-radius: var(--radius); padding: 1px 5px; font-size: 10.5px; outline: none;
-    opacity: 0; transition: opacity 0.12s; flex: 0 0 auto;
-  }
   .tdel { color: var(--fg-faint); font-size: 16px; width: 20px; opacity: 0; transition: opacity 0.12s, color 0.12s; flex: 0 0 auto; }
   .tdel:hover { color: var(--danger); }
 
   .resources { margin-top: 28px; }
+  .people { margin-top: 28px; }
+  .ppl { display: flex; flex-wrap: wrap; gap: 6px; }
+  .pchip { display: inline-flex; align-items: center; gap: 7px; padding: 4px 10px 4px 4px; font-size: 12px; color: var(--fg); background: var(--bg-inset); border: 1px solid var(--border); border-radius: 14px; transition: border-color 0.12s; }
+  .pchip:hover { border-color: var(--fg-faint); }
+  .pav { width: 20px; height: 20px; display: inline-flex; align-items: center; justify-content: center; border-radius: 50%; background: var(--bg-elev); color: var(--accent); font-size: 10px; font-weight: 700; }
   .r-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
   .r-title-h { font-weight: 700; font-size: 13px; }
   .rlist { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 1px; }

@@ -46,7 +46,7 @@ export interface Resource {
   updated_at: number;
 }
 
-export type LinkTargetType = "area" | "project" | "task";
+export type LinkTargetType = "area" | "project" | "task" | "contact";
 
 export interface ResourceLink {
   id: string;
@@ -63,4 +63,47 @@ export interface UpcomingItem {
   title: string;
   due_at: number;
   context: string; // area name, or "area / project"
+}
+
+// Standalone calendar events (not tied to a project/task).
+export interface CalEvent {
+  id: string;
+  title: string;
+  start_at: number;
+  end_at: number | null;
+  all_day: number; // 0 | 1
+  notes: string;
+  archived: number;
+  created_at: number;
+  updated_at: number;
+}
+
+// Unified item placed on a calendar day.
+export interface CalItem {
+  kind: "event" | "project" | "task" | "contactdate";
+  id: string;
+  title: string;
+  at: number; // the day it sits on (start_at or due_at or recurring occurrence)
+  context: string;
+  areaId?: string; // for projects/tasks, to enable click-through
+  contactId?: string; // for contact dates, to open the contact
+}
+
+// CRM
+export interface Contact {
+  id: string;
+  name: string;
+  notes: string;
+  archived: number;
+  created_at: number;
+  updated_at: number;
+}
+
+export interface ContactDate {
+  id: string;
+  contact_id: string;
+  label: string; // "Birthday", "Anniversary", …
+  date_at: number;
+  recurring: number; // 0 | 1 (annual)
+  created_at: number;
 }

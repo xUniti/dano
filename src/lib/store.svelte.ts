@@ -1,12 +1,13 @@
 // DANO reactive store (Svelte 5 runes) — PARA + Resources (Phase B).
 
 import type {
-  Area, LinkTargetType, Project, ProjectStatus, Resource, Task, TaskStatus,
+  Area, CalEvent, CalItem, Contact, ContactDate, LinkTargetType, Project, ProjectStatus, Resource, Task, TaskStatus,
 } from "./types";
 import * as db from "./db";
 import type { DetailedLink } from "./db";
 
-type View = "dashboard" | "area" | "project" | "resources" | "resource" | "archive";
+type View = "dashboard" | "area" | "project" | "resources" | "resource" | "archive" | "calendar" | "contacts" | "contact";
+type CalMode = "month" | "week" | "agenda";
 
 class DanoStore {
   view = $state<View>("dashboard");
@@ -24,7 +25,7 @@ class DanoStore {
 
   // Dashboard
   dashboard = $state<{
-    upcoming: Awaited<ReturnType<typeof db.upcoming>>;
+    upcoming: { kind: "project" | "task" | "contactdate"; id: string; title: string; due_at: number; context: string; contactId?: string }[];
     activeProjects: Awaited<ReturnType<typeof db.activeProjects>>;
     inbox: Resource[];
   }>({ upcoming: [], activeProjects: [], inbox: [] });
@@ -51,6 +52,23 @@ class DanoStore {
   ready = $state(false);
   error = $state<string | null>(null);
 
+  // Calendar
+  calMode = $state<CalMode>("month");
+  calAnchor = $state<number>(Date.now()); // a timestamp inside the viewed period
+  calItems = $state<CalItem[]>([]);
+  activeEvent = $state<CalEvent | null>(null); // event being edited in the dialog
+
+  // CRM
+  contacts = $state<Contact[]>([]);
+  activeContactId = $state<string | null>(null);
+  contactCache = $state<Record<string, Contact>>({});
+  contactDates = $state<ContactDate[]>([]);
+  contactProjects = $state<Awaited<ReturnType<typeof db.listContactProjects>>>([]);
+  contactNotes = $state<Resource[]>([]); // resources linked to the open contact
+  projectContacts = $state<{ id: string; name: string }[]>([]); // people linked to open project
+  pickContacts = $state<{ id: string; name: string }[]>([]);
+  contactReturnTo = $state<View>("contacts");
+
   #saveTimer: ReturnType<typeof setTimeout> | null = null;
 
   #fail(e: unknown) { this.error = e instanceof Error ? e.message : String(e); }
@@ -68,6 +86,23 @@ class DanoStore {
   }
   get activeResource(): Resource | null {
     return this.activeResourceId ? this.resourceCache[this.activeResourceId] ?? null : null;
+  }
+  get activeContact(): Contact | null {
+    return this.activeContactId ? this.contactCache[this.activeContactId] ?? null : null;
+  }
+
+  // Recurring (annual) occurrences of a date within [start, end).
+  #occurrences(dateAt: number, recurring: boolean, start: number, end: number): number[] {
+    const d = new Date(dateAt);
+    if (!recurring) return dateAt >= start && dateAt < end ? [dateAt] : [];
+    const out: number[] = [];
+    const ys = new Date(start).getFullYear();
+    const ye = new Date(end).getFullYear();
+    for (let y = ys; y <= ye; y++) {
+      const occ = new Date(y, d.getMonth(), d.getDate()).getTime();
+      if (occ >= start && occ < end) out.push(occ);
+    }
+    return out;
   }
 
   async init() {
@@ -90,8 +125,19 @@ class DanoStore {
     this.activeAreaId = null; this.activeProjectId = null; this.activeResourceId = null;
     this.loading = true;
     try {
-      const [up, active, inbox] = await Promise.all([db.upcoming(), db.activeProjects(), db.listInboxResources()]);
-      this.dashboard = { upcoming: up, activeProjects: active, inbox };
+      const [up, active, inbox, dates] = await Promise.all([
+        db.upcoming(), db.activeProjects(), db.listInboxResources(), db.allContactDates(),
+      ]);
+      const now = Date.now();
+      const horizon = now + 45 * 86400000;
+      const birthdays = dates.flatMap((d) => {
+        const occ = this.#occurrences(d.date_at, d.recurring === 1, now - 86400000, horizon)[0];
+        return occ
+          ? [{ kind: "contactdate" as const, id: d.id, title: d.contact_name + " · " + d.label, due_at: occ, context: "", contactId: d.contact_id }]
+          : [];
+      });
+      const upcoming = [...up, ...birthdays].sort((a, b) => a.due_at - b.due_at);
+      this.dashboard = { upcoming, activeProjects: active, inbox };
     } catch (e) { this.#fail(e); } finally { this.loading = false; }
   }
 
@@ -128,8 +174,10 @@ class DanoStore {
     this.activeAreaId = areaId; this.activeProjectId = id; this.activeResourceId = null;
     this.loading = true;
     try {
-      const [tasks, res] = await Promise.all([db.listTasks(id, false), db.listResourcesForTarget("project", id)]);
-      this.tasks = tasks; this.contextResources = res;
+      const [tasks, res, people] = await Promise.all([
+        db.listTasks(id, false), db.listResourcesForTarget("project", id), db.listProjectContacts(id),
+      ]);
+      this.tasks = tasks; this.contextResources = res; this.projectContacts = people;
     } catch (e) { this.#fail(e); } finally { this.loading = false; }
   }
 
@@ -316,8 +364,10 @@ class DanoStore {
 
   async loadPickers() {
     try {
-      const [projects, tasks] = await Promise.all([db.listAllProjects(), db.listAllTasks()]);
-      this.pickProjects = projects; this.pickTasks = tasks;
+      const [projects, tasks, contacts] = await Promise.all([
+        db.listAllProjects(), db.listAllTasks(), db.listAllContacts(),
+      ]);
+      this.pickProjects = projects; this.pickTasks = tasks; this.pickContacts = contacts;
     } catch (e) { this.#fail(e); }
   }
 
@@ -367,6 +417,214 @@ class DanoStore {
       await db.updateArea(id, { archived: 0 });
       this.archive.areas = this.archive.areas.filter((a) => a.id !== id);
       await this.loadAreas();
+    } catch (e) { this.#fail(e); }
+  }
+
+  /* ---- calendar ---- */
+
+  // The [start, end) range covering the visible period, snapped to whole days.
+  #calRange(): { start: number; end: number } {
+    const a = new Date(this.calAnchor);
+    if (this.calMode === "month") {
+      const first = new Date(a.getFullYear(), a.getMonth(), 1);
+      // Grid starts on the Monday on/before the 1st.
+      const startDow = (first.getDay() + 6) % 7;
+      const start = new Date(first.getFullYear(), first.getMonth(), 1 - startDow);
+      const end = new Date(start.getFullYear(), start.getMonth(), start.getDate() + 42);
+      return { start: start.getTime(), end: end.getTime() };
+    }
+    if (this.calMode === "week") {
+      const dow = (a.getDay() + 6) % 7;
+      const start = new Date(a.getFullYear(), a.getMonth(), a.getDate() - dow);
+      const end = new Date(start.getFullYear(), start.getMonth(), start.getDate() + 7);
+      return { start: start.getTime(), end: end.getTime() };
+    }
+    // agenda: from today, 60 days ahead
+    const start = new Date(a.getFullYear(), a.getMonth(), a.getDate());
+    const end = new Date(start.getFullYear(), start.getMonth(), start.getDate() + 60);
+    return { start: start.getTime(), end: end.getTime() };
+  }
+
+  async openCalendar() {
+    this.view = "calendar";
+    this.activeResourceId = null;
+    await this.loadCalendar();
+  }
+
+  async loadCalendar() {
+    this.loading = true;
+    try {
+      const { start, end } = this.#calRange();
+      const base = await db.calendarItems(start, end);
+      const dates = await db.allContactDates();
+      const birthdays: CalItem[] = [];
+      for (const d of dates) {
+        for (const occ of this.#occurrences(d.date_at, d.recurring === 1, start, end)) {
+          birthdays.push({
+            kind: "contactdate", id: d.id, title: d.contact_name + " · " + d.label,
+            at: occ, context: "", contactId: d.contact_id,
+          });
+        }
+      }
+      this.calItems = [...base, ...birthdays].sort((a, b) => a.at - b.at);
+    } catch (e) { this.#fail(e); } finally { this.loading = false; }
+  }
+
+  async setCalMode(mode: CalMode) {
+    this.calMode = mode;
+    await this.loadCalendar();
+  }
+
+  async calStep(dir: -1 | 1) {
+    const a = new Date(this.calAnchor);
+    if (this.calMode === "month") a.setMonth(a.getMonth() + dir);
+    else if (this.calMode === "week") a.setDate(a.getDate() + dir * 7);
+    else a.setDate(a.getDate() + dir * 30);
+    this.calAnchor = a.getTime();
+    await this.loadCalendar();
+  }
+
+  async calToday() {
+    this.calAnchor = Date.now();
+    await this.loadCalendar();
+  }
+
+  // Click a calendar item: open the underlying entity, or edit the event.
+  async openCalItem(item: CalItem) {
+    if (item.kind === "project" && item.areaId) await this.openProject(item.id, item.areaId);
+    else if (item.kind === "task" && item.areaId) await this.openArea(item.areaId);
+    else if (item.kind === "event") await this.editEvent(item.id);
+    else if (item.kind === "contactdate" && item.contactId) await this.openContact(item.contactId, "calendar");
+  }
+
+  async newEvent(dayStart: number) {
+    try {
+      const ev = await db.createEvent(dayStart, "");
+      this.activeEvent = ev;
+      await this.loadCalendar();
+    } catch (e) { this.#fail(e); }
+  }
+
+  async editEvent(id: string) {
+    try {
+      const ev = await db.getEvent(id);
+      if (ev) this.activeEvent = ev;
+    } catch (e) { this.#fail(e); }
+  }
+
+  closeEvent() { this.activeEvent = null; }
+
+  async saveEvent(patch: Partial<Pick<CalEvent, "title" | "start_at" | "notes">>) {
+    const ev = this.activeEvent;
+    if (!ev) return;
+    Object.assign(ev, patch);
+    try {
+      await db.updateEvent(ev.id, patch);
+      await this.loadCalendar();
+    } catch (e) { this.#fail(e); }
+  }
+
+  async deleteEvent() {
+    const ev = this.activeEvent;
+    if (!ev) return;
+    try {
+      await db.deleteEvent(ev.id);
+      this.activeEvent = null;
+      await this.loadCalendar();
+    } catch (e) { this.#fail(e); }
+  }
+
+  /* ---- CRM: contacts ---- */
+
+  async openContacts() {
+    this.view = "contacts";
+    this.activeContactId = null;
+    this.loading = true;
+    try { this.contacts = await db.listContacts(false); } catch (e) { this.#fail(e); } finally { this.loading = false; }
+  }
+
+  async openContact(id: string, from: View = this.view) {
+    this.contactReturnTo = from === "contact" ? this.contactReturnTo : from;
+    this.view = "contact";
+    this.activeContactId = id;
+    try {
+      const [c, dates, projects, notes] = await Promise.all([
+        db.getContact(id), db.listContactDates(id), db.listContactProjects(id), db.listResourcesForTarget("contact", id),
+      ]);
+      if (c) this.contactCache[id] = c;
+      this.contactDates = dates;
+      this.contactProjects = projects;
+      this.contactNotes = notes;
+    } catch (e) { this.#fail(e); }
+  }
+
+  async backFromContact() {
+    const to = this.contactReturnTo;
+    if (to === "calendar") await this.openCalendar();
+    else await this.openContacts();
+  }
+
+  async addContact() {
+    try {
+      const c = await db.createContact("");
+      this.contactCache[c.id] = c;
+      this.contacts = [c, ...this.contacts];
+      await this.openContact(c.id, "contacts");
+    } catch (e) { this.#fail(e); }
+  }
+
+  updateContact(patch: Partial<Pick<Contact, "name" | "notes">>) {
+    const c = this.activeContact;
+    if (!c) return;
+    Object.assign(c, patch);
+    c.updated_at = Date.now();
+    const id = c.id;
+    if (this.#saveTimer) clearTimeout(this.#saveTimer);
+    this.#saveTimer = setTimeout(() => { db.updateContact(id, patch).catch((e) => this.#fail(e)); }, 350);
+  }
+
+  async archiveContact() {
+    const c = this.activeContact;
+    if (!c) return;
+    try { await db.updateContact(c.id, { archived: 1 }); await this.backFromContact(); } catch (e) { this.#fail(e); }
+  }
+  async deleteContact() {
+    const c = this.activeContact;
+    if (!c) return;
+    try { await db.deleteContact(c.id); await this.backFromContact(); } catch (e) { this.#fail(e); }
+  }
+
+  async addContactDate(label: string, dateAt: number) {
+    const c = this.activeContact;
+    if (!c) return;
+    try {
+      const cd = await db.addContactDate(c.id, label || "Date", dateAt);
+      this.contactDates = [...this.contactDates, cd];
+    } catch (e) { this.#fail(e); }
+  }
+  async updateContactDate(id: string, patch: { label?: string; date_at?: number }) {
+    const cd = this.contactDates.find((x) => x.id === id);
+    if (cd) Object.assign(cd, patch);
+    try { await db.updateContactDate(id, patch); } catch (e) { this.#fail(e); }
+  }
+  async deleteContactDate(id: string) {
+    try { await db.deleteContactDate(id); this.contactDates = this.contactDates.filter((d) => d.id !== id); } catch (e) { this.#fail(e); }
+  }
+
+  async addContactProject(projectId: string) {
+    const c = this.activeContact;
+    if (!c || !projectId) return;
+    try {
+      await db.addContactProject(c.id, projectId);
+      this.contactProjects = await db.listContactProjects(c.id);
+    } catch (e) { this.#fail(e); }
+  }
+  async removeContactProject(linkId: string) {
+    const c = this.activeContact;
+    if (!c) return;
+    try {
+      await db.removeContactProject(linkId);
+      this.contactProjects = await db.listContactProjects(c.id);
     } catch (e) { this.#fail(e); }
   }
 }

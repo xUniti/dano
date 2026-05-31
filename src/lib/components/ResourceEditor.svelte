@@ -53,7 +53,9 @@
       ? store.areas.map((a) => ({ id: a.id, label: a.name || "Untitled" }))
       : pickType === "project"
         ? store.pickProjects.map((p) => ({ id: p.id, label: `${p.area_name} / ${p.name || "Untitled"}` }))
-        : store.pickTasks.map((t) => ({ id: t.id, label: `${t.context} / ${t.title || "Untitled"}` })),
+        : pickType === "task"
+          ? store.pickTasks.map((t) => ({ id: t.id, label: `${t.context} / ${t.title || "Untitled"}` }))
+          : store.pickContacts.map((c) => ({ id: c.id, label: c.name || "Unnamed" })),
   );
 
   function onTitle(e: Event) {
@@ -64,7 +66,7 @@
     store.addLink(pickType, pickId);
     pickId = "";
   }
-  const glyph = (t: LinkTargetType) => (t === "area" ? "◆" : t === "project" ? "▸" : "□");
+  const glyph = (t: LinkTargetType) => (t === "area" ? "◆" : t === "project" ? "▸" : t === "contact" ? "☻" : "□");
 </script>
 
 {#if resource}
@@ -94,6 +96,7 @@
           <option value="area">Area</option>
           <option value="project">Project</option>
           <option value="task">Task</option>
+          <option value="contact">Contact</option>
         </select>
         <select bind:value={pickId}>
           <option value="">choose…</option>
