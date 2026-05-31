@@ -13,6 +13,7 @@
   import AreasBrowse from "$lib/components/AreasBrowse.svelte";
   import Search from "$lib/components/Search.svelte";
   import Settings from "$lib/components/Settings.svelte";
+  import ConfirmDialog from "$lib/components/ConfirmDialog.svelte";
   import { store } from "$lib/store.svelte";
 </script>
 
@@ -62,6 +63,8 @@
     <button class="dismiss" onclick={() => (store.error = null)}>×</button>
   </div>
 {/if}
+
+<ConfirmDialog />
 
 <style>
   .app { display: flex; height: 100vh; width: 100vw; overflow: hidden; }

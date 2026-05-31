@@ -16,7 +16,7 @@
       <input class="aname" value={area.name} oninput={onName} placeholder="Area name" />
       <div class="actions">
         <button class="act" onclick={() => store.archiveArea(area.id)}>archive</button>
-        <button class="act danger" onclick={() => store.deleteArea(area.id)}>delete</button>
+        <button class="act danger" onclick={() => store.confirmDeleteArea(area.id, area.name)}>delete</button>
       </div>
     </header>
 

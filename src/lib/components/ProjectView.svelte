@@ -115,7 +115,7 @@
         </div>
         <div class="d-actions">
           <button class="act" onclick={() => store.archiveProject(project.id)}>archive</button>
-          <button class="act danger" onclick={() => store.deleteProject(project.id)}>delete</button>
+          <button class="act danger" onclick={() => store.confirmDeleteProject(project.id, project.name)}>delete</button>
         </div>
       </div>
 
@@ -144,7 +144,7 @@
 
 <style>
   .pv { flex: 1; height: 100%; overflow-y: auto; background: var(--bg); min-width: 0; display: flex; gap: 0; align-items: flex-start; }
-  .main { flex: 1; min-width: 0; padding: 20px 26px 40px; max-width: 860px; }
+  .main { flex: 1; min-width: 0; padding: 20px 28px 40px; }
   .rail { flex: 0 0 300px; align-self: stretch; border-left: 1px solid var(--border-soft); padding: 18px; display: flex; flex-direction: column; gap: 14px; }
   @media (max-width: 980px) { .pv { flex-direction: column; } .rail { flex: none; width: 100%; border-left: none; border-top: 1px solid var(--border-soft); } }
 

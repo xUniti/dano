@@ -36,7 +36,7 @@
       <button class="back" onclick={() => store.backFromContact()}>‹ back</button>
       <input class="name" placeholder="Contact name" value={contact.name} oninput={onName} />
       <button class="act" onclick={() => store.archiveContact()}>archive</button>
-      <button class="act danger" onclick={() => store.deleteContact()}>delete</button>
+      <button class="act danger" onclick={() => store.confirmDeleteContact(contact.name)}>delete</button>
     </div>
 
     <div class="body">

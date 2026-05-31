@@ -76,7 +76,7 @@
       <button class="back" onclick={() => store.backFromResource()}>‹ back</button>
       <input class="title" placeholder="Untitled" value={resource.title} oninput={onTitle} />
       <button class="act" onclick={() => store.archiveResource()}>archive</button>
-      <button class="act danger" onclick={() => store.deleteResource()}>delete</button>
+      <button class="act danger" onclick={() => store.confirmDeleteResource(resource.title)}>delete</button>
     </div>
 
     <div class="links">

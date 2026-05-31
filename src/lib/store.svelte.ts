@@ -57,6 +57,12 @@ class DanoStore {
   ready = $state(false);
   error = $state<string | null>(null);
 
+  // Confirmation dialog (destructive actions). Null = closed.
+  confirm = $state<
+    | { title: string; message: string; confirmLabel: string; onConfirm: () => void | Promise<void> }
+    | null
+  >(null);
+
   // PARA counts (sidebar + stat cards) and browse lists
   counts = $state<{ projects: number; areas: number; resources: number; archive: number; inbox: number }>(
     { projects: 0, areas: 0, resources: 0, archive: 0, inbox: 0 },
@@ -249,6 +255,52 @@ class DanoStore {
   openSettings() {
     this.view = "settings";
     this.activeResourceId = null;
+  }
+
+  /* ---- confirmation dialog ---- */
+
+  requestConfirm(opts: { title: string; message: string; confirmLabel: string; onConfirm: () => void | Promise<void> }) {
+    this.confirm = opts;
+  }
+  cancelConfirm() { this.confirm = null; }
+  async runConfirm() {
+    const c = this.confirm;
+    this.confirm = null;
+    if (c) await c.onConfirm();
+  }
+
+  // Destructive-action wrappers that pop a confirm dialog first.
+  confirmDeleteProject(id: string, name: string) {
+    this.requestConfirm({
+      title: "Delete project?",
+      message: `“${name || "Untitled"}” and its tasks, linked notes and activity will be permanently deleted. This can't be undone.`,
+      confirmLabel: "Delete project",
+      onConfirm: () => this.deleteProject(id),
+    });
+  }
+  confirmDeleteArea(id: string, name: string) {
+    this.requestConfirm({
+      title: "Delete area?",
+      message: `“${name || "Untitled"}” and ALL its projects and their tasks will be permanently deleted. This can't be undone.`,
+      confirmLabel: "Delete area",
+      onConfirm: () => this.deleteArea(id),
+    });
+  }
+  confirmDeleteResource(name: string) {
+    this.requestConfirm({
+      title: "Delete note?",
+      message: `“${name || "Untitled"}” will be permanently deleted. This can't be undone.`,
+      confirmLabel: "Delete note",
+      onConfirm: () => this.deleteResource(),
+    });
+  }
+  confirmDeleteContact(name: string) {
+    this.requestConfirm({
+      title: "Delete contact?",
+      message: `“${name || "Unnamed"}”, their dates and project links will be permanently deleted. This can't be undone.`,
+      confirmLabel: "Delete contact",
+      onConfirm: () => this.deleteContact(),
+    });
   }
 
   /* ---- data: backup / restore ---- */
