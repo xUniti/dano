@@ -9,6 +9,9 @@
   import Calendar from "$lib/components/Calendar.svelte";
   import ContactsLibrary from "$lib/components/ContactsLibrary.svelte";
   import ContactEditor from "$lib/components/ContactEditor.svelte";
+  import ProjectsBrowse from "$lib/components/ProjectsBrowse.svelte";
+  import AreasBrowse from "$lib/components/AreasBrowse.svelte";
+  import Search from "$lib/components/Search.svelte";
   import { store } from "$lib/store.svelte";
 </script>
 
@@ -20,6 +23,12 @@
       <Dashboard />
     {:else if store.view === "calendar"}
       <Calendar />
+    {:else if store.view === "search"}
+      <Search />
+    {:else if store.view === "projects"}
+      <ProjectsBrowse />
+    {:else if store.view === "areas"}
+      <AreasBrowse />
     {:else if store.view === "contacts"}
       <ContactsLibrary />
     {:else if store.view === "contact"}

@@ -16,6 +16,8 @@
   } = $props();
 
   let open = $state(false);
+  // svelte-ignore state_referenced_locally — intentional: seed anchor from the
+  // initial `value`; it's re-synced in toggle() each time the popover opens.
   let anchor = $state<number>(value ?? Date.now());
   let root: HTMLDivElement;
 

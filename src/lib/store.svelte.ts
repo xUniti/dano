@@ -1,12 +1,12 @@
 // DANO reactive store (Svelte 5 runes) — PARA + Resources (Phase B).
 
 import type {
-  Area, CalEvent, CalItem, Contact, ContactDate, LinkTargetType, Project, ProjectStatus, Resource, Task, TaskStatus,
+  Area, Activity, CalEvent, CalItem, Contact, ContactDate, LinkTargetType, Project, ProjectPriority, ProjectStatus, Resource, Task, TaskStatus,
 } from "./types";
 import * as db from "./db";
 import type { DetailedLink } from "./db";
 
-type View = "dashboard" | "area" | "project" | "resources" | "resource" | "archive" | "calendar" | "contacts" | "contact";
+type View = "dashboard" | "area" | "project" | "resources" | "resource" | "archive" | "calendar" | "contacts" | "contact" | "projects" | "areas" | "search";
 type CalMode = "month" | "week" | "agenda";
 
 class DanoStore {
@@ -18,6 +18,7 @@ class DanoStore {
 
   activeAreaId = $state<string | null>(null);
   activeProjectId = $state<string | null>(null);
+  activeProjectObj = $state<(Project & { area_name?: string }) | null>(null);
   tasks = $state<Task[]>([]);
 
   // Resources linked to the open project / area.
@@ -28,7 +29,10 @@ class DanoStore {
     upcoming: { kind: "project" | "task" | "contactdate"; id: string; title: string; due_at: number; context: string; contactId?: string }[];
     activeProjects: Awaited<ReturnType<typeof db.activeProjects>>;
     inbox: Resource[];
-  }>({ upcoming: [], activeProjects: [], inbox: [] });
+    resources: Resource[];
+    archived: Awaited<ReturnType<typeof db.recentArchived>>;
+    recent: Awaited<ReturnType<typeof db.recentlyEdited>>;
+  }>({ upcoming: [], activeProjects: [], inbox: [], resources: [], archived: [], recent: [] });
 
   // Resources library + open resource
   library = $state<Resource[]>([]);
@@ -51,6 +55,22 @@ class DanoStore {
   loading = $state(true);
   ready = $state(false);
   error = $state<string | null>(null);
+
+  // PARA counts (sidebar + stat cards) and browse lists
+  counts = $state<{ projects: number; areas: number; resources: number; archive: number; inbox: number }>(
+    { projects: 0, areas: 0, resources: 0, archive: 0, inbox: 0 },
+  );
+  allProjects = $state<(Project & { area_name: string })[]>([]);
+  projectPreviews = $state<Awaited<ReturnType<typeof db.listProjectsWithPreview>>>([]);
+  areaTasks = $state<(Task & { project_name: string })[]>([]);
+  areaTasksAll = $state<(Task & { area_id: string; project_name: string })[]>([]);
+  projectActivity = $state<Activity[]>([]);
+
+  // Search (Phase 3)
+  searchQuery = $state("");
+  searchHits = $state<Awaited<ReturnType<typeof db.search>>>([]);
+  // Dashboard filter: scope by area (null = all)
+  dashFilterArea = $state<string | null>(null);
 
   // Calendar
   calMode = $state<CalMode>("month");
@@ -76,13 +96,8 @@ class DanoStore {
   get activeArea(): Area | null {
     return this.areas.find((a) => a.id === this.activeAreaId) ?? null;
   }
-  get activeProject(): Project | null {
-    if (!this.activeProjectId) return null;
-    for (const list of Object.values(this.projectsByArea)) {
-      const p = list.find((x) => x.id === this.activeProjectId);
-      if (p) return p;
-    }
-    return null;
+  get activeProject(): (Project & { area_name?: string }) | null {
+    return this.activeProjectObj;
   }
   get activeResource(): Resource | null {
     return this.activeResourceId ? this.resourceCache[this.activeResourceId] ?? null : null;
@@ -107,8 +122,13 @@ class DanoStore {
 
   async init() {
     await this.loadAreas();
+    await this.loadCounts();
     await this.openDashboard();
     this.ready = true;
+  }
+
+  async loadCounts() {
+    try { this.counts = await db.counts(); } catch (e) { this.#fail(e); }
   }
 
   async loadAreas() {
@@ -128,6 +148,10 @@ class DanoStore {
       const [up, active, inbox, dates] = await Promise.all([
         db.upcoming(), db.activeProjects(), db.listInboxResources(), db.allContactDates(),
       ]);
+      const [resources, archived, recent] = await Promise.all([
+        db.listResources(false), db.recentArchived(6), db.recentlyEdited(6),
+      ]);
+      this.counts = await db.counts();
       const now = Date.now();
       const horizon = now + 45 * 86400000;
       const birthdays = dates.flatMap((d) => {
@@ -137,7 +161,7 @@ class DanoStore {
           : [];
       });
       const upcoming = [...up, ...birthdays].sort((a, b) => a.due_at - b.due_at);
-      this.dashboard = { upcoming, activeProjects: active, inbox };
+      this.dashboard = { upcoming, activeProjects: active, inbox, resources: resources.slice(0, 6), archived, recent };
     } catch (e) { this.#fail(e); } finally { this.loading = false; }
   }
 
@@ -151,6 +175,7 @@ class DanoStore {
       const r = await db.createResource(title, content);
       this.dashboard.inbox = [r, ...this.dashboard.inbox];
       this.resourceCache[r.id] = r;
+      void this.loadCounts();
     } catch (e) { this.#fail(e); }
   }
 
@@ -166,32 +191,120 @@ class DanoStore {
     this.activeAreaId = id; this.activeProjectId = null; this.activeResourceId = null;
     if (!this.projectsByArea[id]) await this.#loadProjects(id);
     this.expandedAreas[id] = true;
-    try { this.contextResources = await db.listResourcesForTarget("area", id); } catch (e) { this.#fail(e); }
+    try {
+      const [res, tasks] = await Promise.all([
+        db.listResourcesForTarget("area", id), db.listAreaTasks(id),
+      ]);
+      this.contextResources = res; this.areaTasks = tasks;
+    } catch (e) { this.#fail(e); }
+  }
+
+  // Browse: all areas (sidebar PARA → Areas), with their projects and tasks.
+  async openAreasList() {
+    this.view = "areas";
+    this.activeAreaId = null; this.activeProjectId = null; this.activeResourceId = null;
+    this.loading = true;
+    try {
+      const [areas, projects, tasks] = await Promise.all([
+        db.listAreas(false), db.listProjectsAll(), db.allAreaTasks(),
+      ]);
+      this.areas = areas; this.allProjects = projects; this.areaTasksAll = tasks;
+      await this.loadCounts();
+    } catch (e) { this.#fail(e); } finally { this.loading = false; }
+  }
+
+  // Browse: all projects across areas (sidebar PARA → Projects), each with a preview.
+  async openProjects() {
+    this.view = "projects";
+    this.activeProjectId = null; this.activeResourceId = null;
+    this.loading = true;
+    try {
+      this.projectPreviews = await db.listProjectsWithPreview();
+      this.allProjects = this.projectPreviews.map((p) => p.project);
+      await this.loadCounts();
+    } catch (e) { this.#fail(e); } finally { this.loading = false; }
+  }
+
+  // Toggle a task shown in a Projects-browse preview card.
+  async toggleProjectPreviewTask(projectId: string, taskId: string) {
+    const bundle = this.projectPreviews.find((b) => b.project.id === projectId);
+    const t = bundle?.tasks.find((x) => x.id === taskId);
+    if (!t) return;
+    const status: TaskStatus = t.status === "done" ? "todo" : "done";
+    t.status = status;
+    if (status === "done") bundle!.taskCounts.done += 1; else bundle!.taskCounts.done -= 1;
+    try {
+      await db.updateTask(taskId, { status });
+      if (status === "done") await db.logActivity(projectId, "task_completed", "Task completed", t.title || "Untitled");
+    } catch (e) { this.#fail(e); }
+  }
+
+  async openSearch() {
+    this.view = "search";
+    this.activeResourceId = null;
+    void this.loadCounts();
+  }
+
+  async doSearch(q: string) {
+    this.searchQuery = q;
+    const term = q.trim();
+    if (term.length < 2) { this.searchHits = []; return; }
+    try { this.searchHits = await db.search(term); } catch (e) { this.#fail(e); }
+  }
+
+  // Navigate to a search hit or a recently-edited item.
+  async openHit(hit: { kind: string; id: string; areaId?: string; projectId?: string }) {
+    if (hit.kind === "resource") await this.openResource(hit.id, "search");
+    else if (hit.kind === "project" && hit.areaId) await this.openProject(hit.id, hit.areaId);
+    else if (hit.kind === "task" && hit.projectId && hit.areaId) await this.openProject(hit.projectId, hit.areaId);
+    else if (hit.kind === "area") await this.openArea(hit.id);
+    else if (hit.kind === "contact") await this.openContact(hit.id, "search");
+  }
+
+  // Create a blank note from the dashboard and open it (returns to dashboard).
+  async newNote() {
+    try {
+      const r = await db.createResource("", "");
+      this.resourceCache[r.id] = r;
+      void this.loadCounts();
+      await this.openResource(r.id, "dashboard");
+    } catch (e) { this.#fail(e); }
   }
 
   async openProject(id: string, areaId: string) {
     this.view = "project";
     this.activeAreaId = areaId; this.activeProjectId = id; this.activeResourceId = null;
     this.loading = true;
+    void this.loadCounts();
     try {
-      const [tasks, res, people] = await Promise.all([
-        db.listTasks(id, false), db.listResourcesForTarget("project", id), db.listProjectContacts(id),
+      const [proj, tasks, res, people, activity] = await Promise.all([
+        db.getProject(id), db.listTasks(id, false), db.listResourcesForTarget("project", id),
+        db.listProjectContacts(id), db.listActivity(id),
       ]);
+      this.activeProjectObj = proj;
       this.tasks = tasks; this.contextResources = res; this.projectContacts = people;
+      this.projectActivity = activity;
     } catch (e) { this.#fail(e); } finally { this.loading = false; }
+  }
+
+  get projectProgress(): { done: number; total: number } {
+    const total = this.tasks.length;
+    const done = this.tasks.filter((t) => t.status === "done").length;
+    return { done, total };
   }
 
   async openResources() {
     this.view = "resources";
     this.activeResourceId = null;
     this.loading = true;
-    try { this.library = await db.listResources(false); } catch (e) { this.#fail(e); } finally { this.loading = false; }
+    try { this.library = await db.listResources(false); await this.loadCounts(); } catch (e) { this.#fail(e); } finally { this.loading = false; }
   }
 
   async openResource(id: string, from: View = this.view) {
     this.returnTo = from === "resource" ? this.returnTo : from;
     this.view = "resource";
     this.activeResourceId = id;
+    void this.loadCounts();
     try {
       const [r, links] = await Promise.all([db.getResource(id), db.listLinks(id)]);
       if (r) this.resourceCache[id] = r;
@@ -205,6 +318,8 @@ class DanoStore {
       await this.openProject(this.activeProjectId, this.activeAreaId);
     else if (to === "area" && this.activeAreaId) await this.openArea(this.activeAreaId);
     else if (to === "resources") await this.openResources();
+    else if (to === "search") await this.openSearch();
+    else if (to === "contact" && this.activeContactId) await this.openContact(this.activeContactId, "contacts");
     else await this.openDashboard();
   }
 
@@ -217,6 +332,7 @@ class DanoStore {
         db.listResources(true), db.listArchivedProjects(), db.listAreas(true),
       ]);
       this.archive = { resources, projects, areas };
+      await this.loadCounts();
     } catch (e) { this.#fail(e); } finally { this.loading = false; }
   }
 
@@ -257,6 +373,8 @@ class DanoStore {
       const p = await db.createProject(areaId, "New project");
       this.projectsByArea[areaId] = [p, ...(this.projectsByArea[areaId] ?? [])];
       this.expandedAreas[areaId] = true;
+      await db.logActivity(p.id, "project_created", "Project created", "");
+      void this.loadCounts();
       await this.openProject(p.id, areaId);
     } catch (e) { this.#fail(e); }
   }
@@ -265,6 +383,9 @@ class DanoStore {
       const p = list.find((x) => x.id === id);
       if (p) Object.assign(p, patch);
     }
+    const ap = this.allProjects.find((x) => x.id === id);
+    if (ap) Object.assign(ap, patch);
+    if (this.activeProjectObj && this.activeProjectObj.id === id) Object.assign(this.activeProjectObj, patch);
   }
   async renameProject(id: string, name: string) {
     this.#patchProject(id, { name, updated_at: Date.now() });
@@ -272,11 +393,34 @@ class DanoStore {
   }
   async setProjectStatus(id: string, status: ProjectStatus) {
     this.#patchProject(id, { status });
-    try { await db.updateProject(id, { status }); } catch (e) { this.#fail(e); }
+    const labels: Record<ProjectStatus, string> = { planned: "Planned", in_progress: "In Progress", ongoing: "Ongoing", done: "Done" };
+    try {
+      await db.updateProject(id, { status });
+      await db.logActivity(id, "status_changed", "Status updated", labels[status]);
+      if (this.activeProjectId === id) this.projectActivity = await db.listActivity(id);
+    } catch (e) { this.#fail(e); }
+  }
+  async setProjectPriority(id: string, priority: ProjectPriority) {
+    this.#patchProject(id, { priority });
+    try {
+      await db.updateProject(id, { priority });
+      await db.logActivity(id, "priority_changed", "Priority updated", priority);
+      if (this.activeProjectId === id) this.projectActivity = await db.listActivity(id);
+    } catch (e) { this.#fail(e); }
+  }
+  setProjectDescription(id: string, description: string) {
+    this.#patchProject(id, { description });
+    if (this.#saveTimer) clearTimeout(this.#saveTimer);
+    this.#saveTimer = setTimeout(() => { db.updateProject(id, { description }).catch((e) => this.#fail(e)); }, 350);
   }
   async setProjectDue(id: string, due_at: number | null) {
     this.#patchProject(id, { due_at });
-    try { await db.updateProject(id, { due_at }); } catch (e) { this.#fail(e); }
+    const detail = due_at != null ? new Date(due_at).toLocaleDateString([], { month: "short", day: "numeric", year: "numeric" }) : "cleared";
+    try {
+      await db.updateProject(id, { due_at });
+      await db.logActivity(id, "deadline_updated", "Deadline updated", detail);
+      if (this.activeProjectId === id) this.projectActivity = await db.listActivity(id);
+    } catch (e) { this.#fail(e); }
   }
   async archiveProject(id: string) {
     const areaId = this.activeProject?.area_id ?? this.activeAreaId;
@@ -316,7 +460,13 @@ class DanoStore {
     if (!t) return;
     const status: TaskStatus = t.status === "done" ? "todo" : "done";
     this.#patchTask(id, { status });
-    try { await db.updateTask(id, { status }); } catch (e) { this.#fail(e); }
+    try {
+      await db.updateTask(id, { status });
+      if (status === "done" && this.activeProjectId) {
+        await db.logActivity(this.activeProjectId, "task_completed", "Task completed", t.title || "Untitled");
+        this.projectActivity = await db.listActivity(this.activeProjectId);
+      }
+    } catch (e) { this.#fail(e); }
   }
   async setTaskDue(id: string, due_at: number | null) {
     this.#patchTask(id, { due_at });
@@ -324,6 +474,26 @@ class DanoStore {
   }
   async deleteTask(id: string) {
     try { await db.deleteTask(id); this.tasks = this.tasks.filter((t) => t.id !== id); } catch (e) { this.#fail(e); }
+  }
+
+  // Add a task to a specific project (used by the Areas overview), then refresh.
+  async addTaskToProject(projectId: string) {
+    try {
+      await db.createTask(projectId, "New task");
+      this.areaTasksAll = await db.allAreaTasks();
+      void this.loadCounts();
+    } catch (e) { this.#fail(e); }
+  }
+  // Toggle a task from the Areas overview list.
+  async toggleAreaTask(id: string) {
+    const t = this.areaTasksAll.find((x) => x.id === id);
+    if (!t) return;
+    const status: TaskStatus = t.status === "done" ? "todo" : "done";
+    t.status = status;
+    try {
+      await db.updateTask(id, { status });
+      if (status === "done") await db.logActivity(t.project_id, "task_completed", "Task completed", t.title || "Untitled");
+    } catch (e) { this.#fail(e); }
   }
 
   /* ---- resources ---- */
@@ -338,6 +508,8 @@ class DanoStore {
       const r = await db.createResource("", "");
       this.resourceCache[r.id] = r;
       if (type && targetId) await db.addLink(r.id, type, targetId);
+      if (type === "project" && targetId) await db.logActivity(targetId, "note_added", "Note added", "");
+      void this.loadCounts();
       await this.openResource(r.id, this.view);
     } catch (e) { this.#fail(e); }
   }
@@ -397,6 +569,7 @@ class DanoStore {
     try {
       await db.updateResource(id, { archived: 0 });
       this.archive.resources = this.archive.resources.filter((x) => x.id !== id);
+      void this.loadCounts();
     } catch (e) { this.#fail(e); }
   }
   async deleteResource() {
@@ -410,6 +583,7 @@ class DanoStore {
     try {
       await db.updateProject(id, { archived: 0 });
       this.archive.projects = this.archive.projects.filter((p) => p.id !== id);
+      void this.loadCounts();
     } catch (e) { this.#fail(e); }
   }
   async unarchiveArea(id: string) {
@@ -417,6 +591,7 @@ class DanoStore {
       await db.updateArea(id, { archived: 0 });
       this.archive.areas = this.archive.areas.filter((a) => a.id !== id);
       await this.loadAreas();
+      void this.loadCounts();
     } catch (e) { this.#fail(e); }
   }
 

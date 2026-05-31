@@ -1,5 +1,6 @@
 <script lang="ts">
   import { store } from "$lib/store.svelte";
+  import PageHeader from "$lib/components/PageHeader.svelte";
 
   let q = $state("");
 
@@ -23,13 +24,10 @@
 </script>
 
 <section class="lib">
-  <header class="head">
-    <div class="head-top">
-      <h1>Resources</h1>
-      <button class="new" onclick={() => store.addResource()}>+ note</button>
-    </div>
+  <PageHeader icon="▤" title="Resources" color="var(--res)" count={store.counts.resources} actionLabel="▤ New Note" onAction={() => store.addResource()} />
+  <div class="search-bar">
     <input class="search" placeholder="Search resources…" bind:value={q} />
-  </header>
+  </div>
 
   <div class="scroll">
     {#if store.loading}
@@ -53,12 +51,8 @@
 
 <style>
   .lib { flex: 1; height: 100%; display: flex; flex-direction: column; background: var(--bg); min-width: 0; }
-  .head { padding: 22px 28px 14px; border-bottom: 1px solid var(--border-soft); }
-  .head-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
-  h1 { margin: 0; font-size: 22px; font-weight: 700; color: var(--fg); }
-  .new { color: var(--accent); font-size: 12px; padding: 4px 9px; border-radius: var(--radius); }
-  .new:hover { background: var(--bg-elev); }
-  .search { width: 100%; background: var(--bg-inset); border: 1px solid var(--border); border-radius: var(--radius); padding: 7px 10px; font-size: 12px; color: var(--fg); outline: none; }
+  .search-bar { padding: 12px 28px 4px; }
+  .search { width: 100%; max-width: 760px; background: var(--bg-inset); border: 1px solid var(--border); border-radius: var(--radius); padding: 7px 10px; font-size: 12px; color: var(--fg); outline: none; }
   .search::placeholder { color: var(--fg-faint); }
 
   .scroll { flex: 1; overflow-y: auto; padding: 12px 20px 24px; }

@@ -4,6 +4,7 @@
 import Database from "@tauri-apps/plugin-sql";
 import type {
   Area,
+  Activity,
   LinkTargetType,
   Project,
   ProjectStatus,
@@ -69,21 +70,32 @@ export async function deleteArea(id: string): Promise<void> {
 export async function listProjects(areaId: string, archived = false): Promise<Project[]> {
   const conn = await db();
   return conn.select<Project[]>(
-    "SELECT * FROM projects WHERE area_id = $1 AND archived = $2 ORDER BY status ASC, updated_at DESC",
+    "SELECT * FROM projects WHERE area_id = $1 AND archived = $2 ORDER BY (status = 'done') ASC, updated_at DESC",
     [areaId, archived ? 1 : 0],
   );
+}
+export async function getProject(id: string): Promise<(Project & { area_name: string }) | null> {
+  const conn = await db();
+  const rows = await conn.select<(Project & { area_name: string })[]>(
+    `SELECT p.*, a.name AS area_name FROM projects p JOIN areas a ON a.id = p.area_id WHERE p.id = $1`,
+    [id],
+  );
+  return rows[0] ?? null;
 }
 export async function createProject(areaId: string, name: string): Promise<Project> {
   const conn = await db();
   const t = now();
-  const p: Project = { id: crypto.randomUUID(), name, area_id: areaId, status: "active", due_at: null, archived: 0, created_at: t, updated_at: t };
+  const p: Project = {
+    id: crypto.randomUUID(), name, area_id: areaId, status: "in_progress",
+    priority: "medium", description: "", due_at: null, archived: 0, created_at: t, updated_at: t,
+  };
   await conn.execute(
-    "INSERT INTO projects (id, name, area_id, status, due_at, archived, created_at, updated_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8)",
-    [p.id, p.name, p.area_id, p.status, p.due_at, p.archived, p.created_at, p.updated_at],
+    "INSERT INTO projects (id, name, area_id, status, priority, description, due_at, archived, created_at, updated_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)",
+    [p.id, p.name, p.area_id, p.status, p.priority, p.description, p.due_at, p.archived, p.created_at, p.updated_at],
   );
   return p;
 }
-export async function updateProject(id: string, patch: Partial<Pick<Project, "name" | "status" | "due_at" | "archived">>): Promise<void> {
+export async function updateProject(id: string, patch: Partial<Pick<Project, "name" | "status" | "priority" | "description" | "due_at" | "archived">>): Promise<void> {
   const conn = await db();
   const { clause, values, next } = setClause(patch);
   if (!clause) return;
@@ -108,6 +120,24 @@ export async function listAllProjects(): Promise<{ id: string; name: string; are
   return conn.select(
     `SELECT p.id AS id, p.name AS name, a.name AS area_name FROM projects p JOIN areas a ON a.id = p.area_id
       WHERE p.archived = 0 ORDER BY a.name, p.name`,
+  );
+}
+// Full project rows + area name, for the Projects browse view.
+export async function listProjectsAll(): Promise<(Project & { area_name: string })[]> {
+  const conn = await db();
+  return conn.select(
+    `SELECT p.*, a.name AS area_name FROM projects p JOIN areas a ON a.id = p.area_id
+      WHERE p.archived = 0 ORDER BY (p.status = 'done') ASC, p.due_at IS NULL, p.due_at ASC, p.updated_at DESC`,
+  );
+}
+// All non-archived tasks with their area + project (for the Areas overview).
+export async function allAreaTasks(): Promise<(Task & { area_id: string; project_name: string })[]> {
+  const conn = await db();
+  return conn.select(
+    `SELECT t.*, p.area_id AS area_id, p.name AS project_name
+       FROM tasks t JOIN projects p ON p.id = t.project_id
+      WHERE t.archived = 0
+      ORDER BY (t.status = 'done') ASC, t.due_at IS NULL, t.due_at ASC, t.updated_at DESC`,
   );
 }
 
@@ -149,6 +179,87 @@ export async function listAllTasks(): Promise<{ id: string; title: string; conte
        FROM tasks t JOIN projects p ON p.id = t.project_id JOIN areas a ON a.id = p.area_id
       WHERE t.archived = 0 ORDER BY context, t.title`,
   );
+}
+// All tasks across an area's projects (for the Area view).
+export async function listAreaTasks(areaId: string): Promise<(Task & { project_name: string })[]> {
+  const conn = await db();
+  return conn.select(
+    `SELECT t.*, p.name AS project_name FROM tasks t JOIN projects p ON p.id = t.project_id
+      WHERE p.area_id = $1 AND t.archived = 0
+      ORDER BY t.status ASC, t.due_at IS NULL, t.due_at ASC, t.updated_at DESC`,
+    [areaId],
+  );
+}
+
+/* ---------- Projects browse: per-project preview bundles ---------- */
+
+export interface ProjectPreview {
+  project: Project & { area_name: string };
+  tasks: Task[];          // up to a few, open first
+  notes: Resource[];      // linked notes, recent first
+  contacts: { id: string; name: string }[];
+  taskCounts: { done: number; total: number };
+}
+
+// One bundle per non-archived project, with a small preview of tasks/notes/contacts.
+// Done in a few batched queries (no N+1): fetch all rows, then group in JS.
+export async function listProjectsWithPreview(taskLimit = 4, noteLimit = 3): Promise<ProjectPreview[]> {
+  const conn = await db();
+  const projects = await conn.select<(Project & { area_name: string })[]>(
+    `SELECT p.*, a.name AS area_name FROM projects p JOIN areas a ON a.id = p.area_id
+      WHERE p.archived = 0
+      ORDER BY (p.status = 'done') ASC, p.due_at IS NULL, p.due_at ASC, p.updated_at DESC`,
+  );
+  if (projects.length === 0) return [];
+
+  const tasks = await conn.select<Task[]>(
+    `SELECT t.* FROM tasks t JOIN projects p ON p.id = t.project_id
+      WHERE p.archived = 0 AND t.archived = 0
+      ORDER BY (t.status = 'done') ASC, t.due_at IS NULL, t.due_at ASC, t.updated_at DESC`,
+  );
+  const notes = await conn.select<(Resource & { project_id: string })[]>(
+    `SELECT r.*, l.target_id AS project_id FROM resources r
+       JOIN resource_links l ON l.resource_id = r.id
+      WHERE r.archived = 0 AND l.target_type = 'project'
+      ORDER BY r.updated_at DESC`,
+  );
+  const contacts = await conn.select<{ project_id: string; id: string; name: string }[]>(
+    `SELECT l.project_id AS project_id, c.id AS id, c.name AS name
+       FROM contact_links l JOIN contacts c ON c.id = l.contact_id
+      WHERE c.archived = 0 ORDER BY c.name COLLATE NOCASE ASC`,
+  );
+
+  const byProjTasks = new Map<string, Task[]>();
+  const counts = new Map<string, { done: number; total: number }>();
+  for (const t of tasks) {
+    const arr = byProjTasks.get(t.project_id) ?? [];
+    arr.push(t);
+    byProjTasks.set(t.project_id, arr);
+    const c = counts.get(t.project_id) ?? { done: 0, total: 0 };
+    c.total += 1;
+    if (t.status === "done") c.done += 1;
+    counts.set(t.project_id, c);
+  }
+  const byProjNotes = new Map<string, Resource[]>();
+  for (const n of notes) {
+    const arr = byProjNotes.get(n.project_id) ?? [];
+    arr.push(n);
+    byProjNotes.set(n.project_id, arr);
+  }
+  const byProjContacts = new Map<string, { id: string; name: string }[]>();
+  for (const c of contacts) {
+    const arr = byProjContacts.get(c.project_id) ?? [];
+    arr.push({ id: c.id, name: c.name });
+    byProjContacts.set(c.project_id, arr);
+  }
+
+  return projects.map((project) => ({
+    project,
+    tasks: (byProjTasks.get(project.id) ?? []).slice(0, taskLimit),
+    notes: (byProjNotes.get(project.id) ?? []).slice(0, noteLimit),
+    contacts: byProjContacts.get(project.id) ?? [],
+    taskCounts: counts.get(project.id) ?? { done: 0, total: 0 },
+  }));
 }
 
 /* ---------- Resources (= notes) ---------- */
@@ -260,7 +371,7 @@ export async function upcoming(limit = 12): Promise<
   return conn.select(
     `SELECT 'project' AS kind, p.id AS id, p.name AS title, p.due_at AS due_at, a.name AS context
        FROM projects p JOIN areas a ON a.id = p.area_id
-      WHERE p.archived = 0 AND p.status = 'active' AND p.due_at IS NOT NULL
+      WHERE p.archived = 0 AND p.status != 'done' AND p.due_at IS NOT NULL
      UNION ALL
      SELECT 'task' AS kind, t.id AS id, t.title AS title, t.due_at AS due_at, a.name || ' / ' || p.name AS context
        FROM tasks t JOIN projects p ON p.id = t.project_id JOIN areas a ON a.id = p.area_id
@@ -276,13 +387,141 @@ export async function activeProjects(limit = 20): Promise<
   return conn.select(
     `SELECT p.id AS id, p.name AS name, p.area_id AS area_id, a.name AS area_name, p.due_at AS due_at
        FROM projects p JOIN areas a ON a.id = p.area_id
-      WHERE p.archived = 0 AND p.status = 'active'
+      WHERE p.archived = 0 AND p.status != 'done'
       ORDER BY p.updated_at DESC LIMIT $1`,
     [limit],
   );
 }
 
 export type { ProjectStatus, TaskStatus };
+
+/* ---------- Activity log ---------- */
+
+export async function logActivity(projectId: string | null, kind: string, title: string, detail = ""): Promise<void> {
+  const conn = await db();
+  await conn.execute(
+    "INSERT INTO activity (id, project_id, kind, title, detail, created_at) VALUES ($1,$2,$3,$4,$5,$6)",
+    [crypto.randomUUID(), projectId, kind, title, detail, now()],
+  );
+}
+export async function listActivity(projectId: string, limit = 15): Promise<Activity[]> {
+  const conn = await db();
+  return conn.select<Activity[]>(
+    "SELECT * FROM activity WHERE project_id = $1 ORDER BY created_at DESC LIMIT $2",
+    [projectId, limit],
+  );
+}
+
+/* ---------- Counts + recently edited (dashboard / sidebar) ---------- */
+
+export async function counts(): Promise<{ projects: number; areas: number; resources: number; archive: number; inbox: number }> {
+  const conn = await db();
+  const rows = await conn.select<{ k: string; c: number }[]>(
+    `SELECT 'projects' AS k, COUNT(*) AS c FROM projects WHERE archived = 0
+     UNION ALL SELECT 'areas', COUNT(*) FROM areas WHERE archived = 0
+     UNION ALL SELECT 'resources', COUNT(*) FROM resources WHERE archived = 0
+     UNION ALL SELECT 'archive',
+       (SELECT COUNT(*) FROM projects WHERE archived = 1)
+       + (SELECT COUNT(*) FROM areas WHERE archived = 1)
+       + (SELECT COUNT(*) FROM resources WHERE archived = 1)
+     UNION ALL SELECT 'inbox',
+       (SELECT COUNT(*) FROM resources r WHERE r.archived = 0
+          AND NOT EXISTS (SELECT 1 FROM resource_links l WHERE l.resource_id = r.id))`,
+  );
+  const m: Record<string, number> = {};
+  for (const r of rows) m[r.k] = r.c;
+  return {
+    projects: m.projects ?? 0, areas: m.areas ?? 0, resources: m.resources ?? 0,
+    archive: m.archive ?? 0, inbox: m.inbox ?? 0,
+  };
+}
+
+export async function recentlyEdited(limit = 6): Promise<
+  { kind: "resource" | "project" | "area"; id: string; title: string; context: string; updated_at: number; areaId?: string }[]
+> {
+  const conn = await db();
+  const rows = await conn.select<
+    { kind: "resource" | "project" | "area"; id: string; title: string; context: string; updated_at: number; area_id: string | null }[]
+  >(
+    `SELECT 'resource' AS kind, r.id AS id, r.title AS title, 'Resources' AS context, r.updated_at AS updated_at, NULL AS area_id
+       FROM resources r WHERE r.archived = 0
+     UNION ALL
+     SELECT 'project' AS kind, p.id AS id, p.name AS title, a.name AS context, p.updated_at AS updated_at, p.area_id AS area_id
+       FROM projects p JOIN areas a ON a.id = p.area_id WHERE p.archived = 0
+     UNION ALL
+     SELECT 'area' AS kind, a.id AS id, a.name AS title, 'Areas' AS context, a.updated_at AS updated_at, a.id AS area_id
+       FROM areas a WHERE a.archived = 0
+     ORDER BY updated_at DESC LIMIT $1`,
+    [limit],
+  );
+  return rows.map((r) => ({
+    kind: r.kind, id: r.id, title: r.title, context: r.context,
+    updated_at: r.updated_at, areaId: r.area_id ?? undefined,
+  }));
+}
+
+// Recently archived items across types (for the dashboard Archive card).
+export async function recentArchived(limit = 6): Promise<
+  { kind: "project" | "resource" | "area"; id: string; title: string; context: string; areaId?: string }[]
+> {
+  const conn = await db();
+  const rows = await conn.select<
+    { kind: "project" | "resource" | "area"; id: string; title: string; context: string; updated_at: number; area_id: string | null }[]
+  >(
+    `SELECT 'project' AS kind, p.id AS id, p.name AS title, a.name AS context, p.updated_at AS updated_at, p.area_id AS area_id
+       FROM projects p JOIN areas a ON a.id = p.area_id WHERE p.archived = 1
+     UNION ALL
+     SELECT 'resource' AS kind, r.id AS id, r.title AS title, 'Resources' AS context, r.updated_at AS updated_at, NULL AS area_id
+       FROM resources r WHERE r.archived = 1
+     UNION ALL
+     SELECT 'area' AS kind, a.id AS id, a.name AS title, 'Areas' AS context, a.updated_at AS updated_at, a.id AS area_id
+       FROM areas a WHERE a.archived = 1
+     ORDER BY updated_at DESC LIMIT $1`,
+    [limit],
+  );
+  return rows.map((r) => ({ kind: r.kind, id: r.id, title: r.title, context: r.context, areaId: r.area_id ?? undefined }));
+}
+
+/* ---------- Global search ---------- */
+
+export interface SearchHit {
+  kind: "resource" | "project" | "task" | "area" | "contact";
+  id: string;
+  title: string;
+  context: string;
+  areaId?: string;
+  projectId?: string;
+}
+
+export async function search(term: string, limit = 40): Promise<SearchHit[]> {
+  const conn = await db();
+  const like = "%" + term + "%";
+  const rows = await conn.select<
+    { kind: SearchHit["kind"]; id: string; title: string; context: string; area_id: string | null; project_id: string | null }[]
+  >(
+    `SELECT 'resource' AS kind, r.id AS id, r.title AS title, 'Resources' AS context, NULL AS area_id, NULL AS project_id
+       FROM resources r WHERE r.archived = 0 AND (r.title LIKE $1 OR r.content LIKE $1)
+     UNION ALL
+     SELECT 'project' AS kind, p.id AS id, p.name AS title, a.name AS context, p.area_id AS area_id, NULL AS project_id
+       FROM projects p JOIN areas a ON a.id = p.area_id WHERE p.archived = 0 AND p.name LIKE $1
+     UNION ALL
+     SELECT 'task' AS kind, t.id AS id, t.title AS title, a.name || ' / ' || p.name AS context, p.area_id AS area_id, p.id AS project_id
+       FROM tasks t JOIN projects p ON p.id = t.project_id JOIN areas a ON a.id = p.area_id
+      WHERE t.archived = 0 AND t.title LIKE $1
+     UNION ALL
+     SELECT 'area' AS kind, a.id AS id, a.name AS title, 'Areas' AS context, a.id AS area_id, NULL AS project_id
+       FROM areas a WHERE a.archived = 0 AND a.name LIKE $1
+     UNION ALL
+     SELECT 'contact' AS kind, c.id AS id, c.name AS title, 'Contacts' AS context, NULL AS area_id, NULL AS project_id
+       FROM contacts c WHERE c.archived = 0 AND (c.name LIKE $1 OR c.notes LIKE $1)
+     LIMIT $2`,
+    [like, limit],
+  );
+  return rows.map((r) => ({
+    kind: r.kind, id: r.id, title: r.title, context: r.context,
+    areaId: r.area_id ?? undefined, projectId: r.project_id ?? undefined,
+  }));
+}
 
 /* ---------- Events + calendar ---------- */
 

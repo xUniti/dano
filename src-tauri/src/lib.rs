@@ -128,6 +128,37 @@ pub fn run() {
             );",
             kind: MigrationKind::Up,
         },
+        Migration {
+            version: 10,
+            description: "projects_add_description",
+            sql: "ALTER TABLE projects ADD COLUMN description TEXT NOT NULL DEFAULT '';",
+            kind: MigrationKind::Up,
+        },
+        Migration {
+            version: 11,
+            description: "projects_add_priority",
+            sql: "ALTER TABLE projects ADD COLUMN priority TEXT NOT NULL DEFAULT 'medium';",
+            kind: MigrationKind::Up,
+        },
+        Migration {
+            version: 12,
+            description: "projects_status_active_to_in_progress",
+            sql: "UPDATE projects SET status = 'in_progress' WHERE status = 'active';",
+            kind: MigrationKind::Up,
+        },
+        Migration {
+            version: 13,
+            description: "create_activity",
+            sql: "CREATE TABLE IF NOT EXISTS activity (
+                id TEXT PRIMARY KEY,
+                project_id TEXT,
+                kind TEXT NOT NULL,
+                title TEXT NOT NULL DEFAULT '',
+                detail TEXT NOT NULL DEFAULT '',
+                created_at INTEGER NOT NULL
+            );",
+            kind: MigrationKind::Up,
+        },
     ];
 
     tauri::Builder::default()

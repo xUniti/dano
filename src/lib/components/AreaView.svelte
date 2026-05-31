@@ -46,6 +46,25 @@
         </ul>
       {/if}
 
+      {#if store.areaTasks.length}
+        <div class="tasks-sec">
+          <div class="r-head"><span class="r-title-h">All tasks in this area</span></div>
+          <ul class="tlist">
+            {#each store.areaTasks as t (t.id)}
+              <li class="trow" class:done={t.status === "done"}>
+                <span class="tbox">{t.status === "done" ? "☑" : "☐"}</span>
+                <span class="ttitle">{t.title || "Untitled"}</span>
+                <span class="tproj">{t.project_name}</span>
+                {#if t.due_at != null && t.status !== "done"}
+                  {@const due = relativeDue(t.due_at)}
+                  <span class="tdue {due.tone}">{due.label}</span>
+                {/if}
+              </li>
+            {/each}
+          </ul>
+        </div>
+      {/if}
+
       <div class="resources">
         <div class="r-head">
           <span class="r-title-h">Notes & resources</span>
@@ -106,6 +125,18 @@
   .due.over { color: var(--danger); }
 
   .resources { margin-top: 28px; }
+  .tasks-sec { margin-top: 28px; }
+  .tlist { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 1px; }
+  .trow { display: flex; align-items: center; gap: 9px; padding: 6px 8px; border-radius: var(--radius); }
+  .trow:hover { background: var(--bg-elev); }
+  .tbox { color: var(--fg-faint); font-size: 14px; flex: 0 0 auto; }
+  .trow.done .tbox { color: var(--accent); }
+  .ttitle { flex: 1; min-width: 0; color: var(--fg); font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .trow.done .ttitle { color: var(--fg-faint); text-decoration: line-through; }
+  .tproj { font-size: 10.5px; color: var(--fg-faint); flex: 0 0 auto; }
+  .tdue { font-size: 10.5px; color: var(--fg-dim); flex: 0 0 auto; }
+  .tdue.soon { color: var(--accent); }
+  .tdue.over { color: var(--danger); }
   .r-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
   .r-title-h { font-weight: 700; font-size: 13px; }
   .rlist { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 1px; }

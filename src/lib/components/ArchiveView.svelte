@@ -1,5 +1,6 @@
 <script lang="ts">
   import { store } from "$lib/store.svelte";
+  import PageHeader from "$lib/components/PageHeader.svelte";
 
   function displayTitle(title: string, content: string): string {
     if (title.trim()) return title.trim();
@@ -9,7 +10,7 @@
 </script>
 
 <section class="arch">
-  <header class="head"><h1>Archive</h1><p class="sub">Finished items, kept for reference.</p></header>
+  <PageHeader icon="▥" title="Archive" color="var(--arch)" count={store.counts.archive} />
 
   <div class="scroll">
     {#if store.loading}
@@ -57,9 +58,6 @@
 
 <style>
   .arch { flex: 1; height: 100%; display: flex; flex-direction: column; background: var(--bg); min-width: 0; }
-  .head { padding: 22px 28px 14px; border-bottom: 1px solid var(--border-soft); }
-  h1 { margin: 0; font-size: 22px; font-weight: 700; color: var(--fg); }
-  .sub { margin: 2px 0 0; color: var(--fg-faint); font-size: 12px; }
   .scroll { flex: 1; overflow-y: auto; padding: 16px 28px 28px; max-width: 760px; }
   .group { margin-bottom: 22px; }
   .g-head { font-size: 11px; text-transform: uppercase; letter-spacing: 0.7px; color: var(--fg-faint); margin-bottom: 6px; }

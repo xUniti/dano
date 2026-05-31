@@ -7,6 +7,7 @@
   import { store } from "$lib/store.svelte";
   import type { LinkTargetType } from "$lib/types";
 
+  // svelte-ignore non_reactive_update — `host` is a bind:this ref, used only in onMount
   let host: HTMLDivElement;
   let view: EditorView | null = null;
   let currentId: string | null = null;

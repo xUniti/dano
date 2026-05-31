@@ -47,3 +47,17 @@ export const weekdayLabels = WEEKDAYS;
 export function dayLabel(ms: number): string {
   return new Date(ms).toLocaleDateString([], { weekday: "short", month: "short", day: "numeric" });
 }
+
+// Past-oriented relative label: "just now", "5m ago", "3h ago", "yesterday", date.
+export function relativeAgo(ms: number): string {
+  const diff = Date.now() - ms;
+  const min = Math.floor(diff / 60000);
+  if (min < 1) return "just now";
+  if (min < 60) return min + "m ago";
+  const hrs = Math.floor(min / 60);
+  if (hrs < 24) return hrs + "h ago";
+  const days = Math.floor(hrs / 24);
+  if (days === 1) return "yesterday";
+  if (days < 7) return days + "d ago";
+  return new Date(ms).toLocaleDateString([], { month: "short", day: "numeric" });
+}

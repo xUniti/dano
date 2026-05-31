@@ -80,7 +80,7 @@
     </div>
     <div class="grid">
       {#each monthDays as day (day)}
-        <div class="cell" class:dim={!inCurrentMonth(day)} class:today={isToday(day)} ondblclick={() => store.newEvent(day)}>
+        <div class="cell" class:dim={!inCurrentMonth(day)} class:today={isToday(day)}>
           <div class="cell-head">
             <span class="num">{new Date(day).getDate()}</span>
             <button class="addday" title="New event" onclick={() => store.newEvent(day)}>+</button>
@@ -100,7 +100,7 @@
     <div class="week">
       {#each weekDays as day (day)}
         <div class="wcol" class:today={isToday(day)}>
-          <div class="wcol-head" ondblclick={() => store.newEvent(day)}>
+          <div class="wcol-head">
             <span class="wd">{new Date(day).toLocaleDateString([], { weekday: "short" })}</span>
             <span class="wn">{new Date(day).getDate()}</span>
             <button class="addday" title="New event" onclick={() => store.newEvent(day)}>+</button>
@@ -140,8 +140,15 @@
 
 {#if store.activeEvent}
   {@const ev = store.activeEvent}
-  <div class="overlay" onclick={() => store.closeEvent()} role="presentation">
-    <div class="dialog" onclick={(e) => e.stopPropagation()} role="dialog">
+  <div
+    class="overlay"
+    onclick={() => store.closeEvent()}
+    onkeydown={(e) => { if (e.key === "Escape") store.closeEvent(); }}
+    role="button"
+    tabindex="-1"
+    aria-label="Close dialog"
+  >
+    <div class="dialog" onclick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" tabindex="-1">
       <div class="dlg-head">
         <span>Event</span>
         <button class="x" onclick={() => store.closeEvent()}>×</button>
@@ -241,7 +248,6 @@
   .dlg-head .x:hover { color: var(--fg); }
   .dlg-title { width: 100%; background: transparent; border: none; border-bottom: 1px solid var(--border); outline: none; font-size: 16px; font-weight: 700; color: var(--fg); padding: 4px 0; margin-bottom: 12px; }
   .dlg-field { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--fg-dim); margin-bottom: 12px; }
-  .dlg-field input { background: var(--bg); color: var(--fg-dim); border: 1px solid var(--border); border-radius: var(--radius); padding: 4px 8px; font-size: 12px; outline: none; }
   .dlg-notes { width: 100%; min-height: 70px; resize: vertical; background: var(--bg); color: var(--fg); border: 1px solid var(--border); border-radius: var(--radius); padding: 8px; font-size: 12px; font-family: inherit; outline: none; margin-bottom: 12px; }
   .dlg-notes::placeholder { color: var(--fg-faint); }
   .dlg-actions { display: flex; align-items: center; justify-content: space-between; }

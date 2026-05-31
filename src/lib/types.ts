@@ -1,6 +1,7 @@
 // DANO core types — hierarchical PARA
 
-export type ProjectStatus = "active" | "done";
+export type ProjectStatus = "planned" | "in_progress" | "ongoing" | "done";
+export type ProjectPriority = "low" | "medium" | "high";
 export type TaskStatus = "todo" | "done";
 
 // Areas are life domains; they hold projects.
@@ -18,6 +19,8 @@ export interface Project {
   name: string;
   area_id: string;
   status: ProjectStatus;
+  priority: ProjectPriority;
+  description: string;
   due_at: number | null;
   archived: number;
   created_at: number;
@@ -105,5 +108,15 @@ export interface ContactDate {
   label: string; // "Birthday", "Anniversary", …
   date_at: number;
   recurring: number; // 0 | 1 (annual)
+  created_at: number;
+}
+
+// Activity log entry (project-scoped audit trail).
+export interface Activity {
+  id: string;
+  project_id: string | null;
+  kind: string; // 'project_created' | 'task_completed' | 'note_added' | 'deadline_updated' | 'status_changed' | 'priority_changed'
+  title: string;
+  detail: string;
   created_at: number;
 }
