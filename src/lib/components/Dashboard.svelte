@@ -1,6 +1,7 @@
 <script lang="ts">
   import { store } from "$lib/store.svelte";
   import { relativeDue, relativeAgo } from "$lib/date";
+  import EmptyState from "$lib/components/EmptyState.svelte";
 
   let capture = $state("");
   let filterOpen = $state(false);
@@ -37,6 +38,12 @@
   );
 
   const recentGlyph = (k: string) => (k === "resource" ? "▤" : k === "project" ? "▸" : "◆");
+
+  // True when the user has no content at all (fresh install).
+  const isFresh = $derived(
+    store.counts.projects === 0 && store.counts.areas === 0 &&
+    store.counts.resources === 0 && store.counts.archive === 0,
+  );
 </script>
 
 <section class="dash">
@@ -68,6 +75,13 @@
     <input class="capture-in" placeholder="Quick capture — type and press Enter…" bind:value={capture} onkeydown={submitCapture} />
   </div>
 
+  {#if isFresh}
+    <EmptyState
+      icon="◆" color="var(--area)" title="Welcome to DANO"
+      message="Start by creating an Area — a part of your life like Health, Work, or Finance. Then add projects and notes inside it."
+      actionLabel="◆ Create your first Area" onAction={() => store.addArea()}
+    />
+  {:else}
   <div class="stats">
     <button class="stat proj" onclick={() => store.openProjects()}>
       <span class="s-ico">▸</span><span class="s-num">{store.counts.projects}</span><span class="s-lbl">Projects</span>
@@ -212,6 +226,7 @@
       {/if}
     </div>
   </div>
+  {/if}
 </section>
 
 <style>

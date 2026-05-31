@@ -22,6 +22,7 @@ export interface Project {
   priority: ProjectPriority;
   description: string;
   due_at: number | null;
+  pinned: number; // 0 | 1
   archived: number;
   created_at: number;
   updated_at: number;
@@ -34,6 +35,7 @@ export interface Task {
   project_id: string;
   status: TaskStatus;
   due_at: number | null;
+  sort_order: number;
   archived: number;
   created_at: number;
   updated_at: number;
@@ -44,6 +46,8 @@ export interface Resource {
   id: string;
   title: string;
   content: string;
+  tags: string; // comma-separated tag list
+  pinned: number; // 0 | 1
   archived: number;
   created_at: number;
   updated_at: number;

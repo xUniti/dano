@@ -34,6 +34,23 @@
   function onDesc(e: Event) { if (project) store.setProjectDescription(project.id, (e.target as HTMLTextAreaElement).value); }
   function onTaskTitle(id: string, e: Event) { store.renameTask(id, (e.target as HTMLInputElement).value); }
 
+  // Drag-to-reorder tasks
+  let dragId = $state<string | null>(null);
+  let overId = $state<string | null>(null);
+  function onDragStart(id: string) { dragId = id; }
+  function onDragOver(id: string, e: DragEvent) { e.preventDefault(); overId = id; }
+  function onDrop(targetId: string) {
+    if (!dragId || dragId === targetId) { dragId = null; overId = null; return; }
+    const ids = store.tasks.map((t) => t.id);
+    const from = ids.indexOf(dragId);
+    const to = ids.indexOf(targetId);
+    if (from < 0 || to < 0) { dragId = null; overId = null; return; }
+    ids.splice(to, 0, ids.splice(from, 1)[0]);
+    store.reorderTasks(ids);
+    dragId = null; overId = null;
+  }
+  function onDragEnd() { dragId = null; overId = null; }
+
   const activityIcon = (k: string) =>
     k === "task_completed" ? "✓" : k === "note_added" ? "▤" : k === "deadline_updated" ? "◷"
       : k === "status_changed" ? "✦" : k === "priority_changed" ? "!" : "＋";
@@ -46,6 +63,7 @@
         <button onclick={() => store.openDashboard()}>Dashboard</button><span>›</span>
         <button onclick={() => store.openProjects()}>Projects</button><span>›</span>
         <span class="here">{project.name || "Untitled"}</span>
+        <button class="pin" class:on={project.pinned} title={project.pinned ? "Unpin" : "Pin"} onclick={() => store.toggleProjectPinned(project.id)}>{project.pinned ? "★" : "☆"}</button>
         <span class="status-badge {project.status}">{statusLabel[project.status]}</span>
       </div>
 
@@ -70,7 +88,18 @@
         {:else}
           <ul class="tasks">
             {#each store.tasks as t (t.id)}
-              <li class="task" class:done={t.status === "done"}>
+              <li
+                class="task"
+                class:done={t.status === "done"}
+                class:dragging={dragId === t.id}
+                class:over={overId === t.id && dragId !== t.id}
+                draggable="true"
+                ondragstart={() => onDragStart(t.id)}
+                ondragover={(e) => onDragOver(t.id, e)}
+                ondrop={() => onDrop(t.id)}
+                ondragend={onDragEnd}
+              >
+                <span class="grip" title="Drag to reorder">∷</span>
                 <button class="check" onclick={() => store.toggleTask(t.id)}>{t.status === "done" ? "☑" : "☐"}</button>
                 <input class="ttitle" value={t.title} placeholder="Task…" oninput={(e) => onTaskTitle(t.id, e)} />
                 {#if t.due_at != null && t.status !== "done"}{@const d = relativeDue(t.due_at)}<span class="tdue {d.tone}">{d.label}</span>{/if}
@@ -190,6 +219,7 @@
   .crumbs { display: flex; align-items: center; gap: 7px; font-size: 12px; color: var(--fg-faint); margin-bottom: 14px; }
   .crumbs button { color: var(--fg-faint); } .crumbs button:hover { color: var(--fg); }
   .crumbs .here { color: var(--fg-dim); }
+  .pin { font-size: 14px; color: var(--fg-faint); padding: 0 4px; } .pin:hover { color: var(--res); } .pin.on { color: var(--res); }
   .status-badge { margin-left: auto; font-size: 11px; padding: 2px 10px; border-radius: 12px; font-weight: 600; }
   .status-badge.planned { color: var(--fg-faint); background: var(--bg-elev); }
   .status-badge.in_progress { color: var(--proj); background: color-mix(in srgb, var(--proj) 15%, transparent); }
@@ -222,6 +252,10 @@
   .task { display: flex; align-items: center; gap: 8px; padding: 7px 10px; border-radius: 8px; background: var(--bg-inset); border: 1px solid var(--border-soft); }
   .task:hover { background: var(--bg-elev); }
   .task:hover .tdel { opacity: 1; }
+  .task:hover .grip { opacity: 1; }
+  .task.dragging { opacity: 0.85; background: var(--bg-elev); border-color: var(--accent); }
+  .task.over { border-color: var(--accent); box-shadow: inset 0 2px 0 var(--accent); }
+  .grip { color: var(--fg-faint); font-size: 13px; cursor: grab; opacity: 0; transition: opacity 0.12s; flex: 0 0 auto; }
   .check { color: var(--fg-faint); font-size: 15px; flex: 0 0 auto; }
   .task.done .check { color: var(--accent); }
   .ttitle { flex: 1; min-width: 0; background: transparent; border: none; outline: none; font-size: 13px; color: var(--fg); }

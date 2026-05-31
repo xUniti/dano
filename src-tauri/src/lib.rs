@@ -159,6 +159,30 @@ pub fn run() {
             );",
             kind: MigrationKind::Up,
         },
+        Migration {
+            version: 14,
+            description: "projects_add_pinned",
+            sql: "ALTER TABLE projects ADD COLUMN pinned INTEGER NOT NULL DEFAULT 0;",
+            kind: MigrationKind::Up,
+        },
+        Migration {
+            version: 15,
+            description: "resources_add_pinned",
+            sql: "ALTER TABLE resources ADD COLUMN pinned INTEGER NOT NULL DEFAULT 0;",
+            kind: MigrationKind::Up,
+        },
+        Migration {
+            version: 16,
+            description: "tasks_add_sort_order",
+            sql: "ALTER TABLE tasks ADD COLUMN sort_order INTEGER NOT NULL DEFAULT 0;",
+            kind: MigrationKind::Up,
+        },
+        Migration {
+            version: 17,
+            description: "resources_add_tags",
+            sql: "ALTER TABLE resources ADD COLUMN tags TEXT NOT NULL DEFAULT '';",
+            kind: MigrationKind::Up,
+        },
     ];
 
     tauri::Builder::default()

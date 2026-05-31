@@ -3,6 +3,7 @@
   import { relativeDue } from "$lib/date";
   import { viewMode } from "$lib/viewmode.svelte";
   import PageHeader from "$lib/components/PageHeader.svelte";
+  import EmptyState from "$lib/components/EmptyState.svelte";
   import type { ProjectStatus } from "$lib/types";
 
   let taskMenu = $state<string | null>(null); // area id with open "add task" menu
@@ -48,7 +49,11 @@
 
   <div class="scroll">
     {#if store.areas.length === 0}
-      <p class="muted">No areas yet. Create one to organize your projects.</p>
+      <EmptyState
+        icon="◆" color="var(--area)" title="No areas yet"
+        message="Areas are your ongoing responsibilities — like Health, Finance, or Work. They hold your projects and tasks."
+        actionLabel="◆ New Area" onAction={() => store.addArea()}
+      />
     {:else if viewMode.mode === "compact"}
       <ul class="clist">
         {#each store.areas as area (area.id)}

@@ -62,6 +62,34 @@
   function onTitle(e: Event) {
     store.updateResource({ title: (e.target as HTMLInputElement).value });
   }
+
+  // Tags as chips. Stored as a comma-separated string on the resource.
+  let tagInput = $state("");
+  function tagList(tags: string): string[] {
+    return tags.split(",").map((t) => t.trim()).filter(Boolean);
+  }
+  function addTag() {
+    const r = store.activeResource;
+    if (!r) return;
+    const raw = tagInput.trim().replace(/,+$/, "").trim();
+    if (!raw) { tagInput = ""; return; }
+    const list = tagList(r.tags);
+    if (!list.includes(raw)) { list.push(raw); store.setResourceTags(list.join(", ")); }
+    tagInput = "";
+  }
+  function removeTag(tag: string) {
+    const r = store.activeResource;
+    if (!r) return;
+    store.setResourceTags(tagList(r.tags).filter((t) => t !== tag).join(", "));
+  }
+  function onTagKey(e: KeyboardEvent) {
+    if (e.key === "Enter" || e.key === ",") { e.preventDefault(); addTag(); }
+    else if (e.key === "Backspace" && tagInput === "") {
+      const r = store.activeResource;
+      const list = r ? tagList(r.tags) : [];
+      if (list.length) removeTag(list[list.length - 1]);
+    }
+  }
   function doAdd() {
     if (!pickId) return;
     store.addLink(pickType, pickId);
@@ -75,8 +103,23 @@
     <div class="bar">
       <button class="back" onclick={() => store.backFromResource()}>‹ back</button>
       <input class="title" placeholder="Untitled" value={resource.title} oninput={onTitle} />
+      <button class="act pin" class:on={resource.pinned} title={resource.pinned ? "Unpin" : "Pin"} onclick={() => store.toggleResourcePinned(resource.id)}>{resource.pinned ? "★" : "☆"}</button>
       <button class="act" onclick={() => store.archiveResource()}>archive</button>
       <button class="act danger" onclick={() => store.confirmDeleteResource(resource.title)}>delete</button>
+    </div>
+
+    <div class="tags-row">
+      <span class="links-label">Tags</span>
+      {#each tagList(resource.tags) as t (t)}
+        <span class="tag-chip">#{t}<button class="tag-x" title="Remove" onclick={() => removeTag(t)}>×</button></span>
+      {/each}
+      <input
+        class="tags-in"
+        placeholder={tagList(resource.tags).length ? "add tag…" : "add a tag and press Enter…"}
+        bind:value={tagInput}
+        onkeydown={onTagKey}
+        onblur={addTag}
+      />
     </div>
 
     <div class="links">
@@ -128,6 +171,13 @@
   .act { color: var(--fg-faint); font-size: 11px; padding: 5px 9px; border-radius: var(--radius); border: 1px solid transparent; transition: color 0.12s, border-color 0.12s; flex: 0 0 auto; }
   .act:hover { color: var(--fg); border-color: var(--border); }
   .act.danger:hover { color: var(--danger); border-color: var(--danger); }
+  .act.pin { font-size: 13px; } .act.pin:hover { color: var(--res); border-color: transparent; } .act.pin.on { color: var(--res); }
+
+  .tags-row { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; padding: 8px 18px; border-bottom: 1px solid var(--border-soft); }
+  .tag-chip { display: inline-flex; align-items: center; gap: 3px; font-size: 11px; color: var(--res); background: var(--res-soft); border: 1px solid color-mix(in srgb, var(--res) 30%, transparent); border-radius: 11px; padding: 2px 4px 2px 9px; }
+  .tag-x { color: var(--fg-faint); font-size: 13px; width: 15px; border-radius: 50%; } .tag-x:hover { color: var(--danger); }
+  .tags-in { flex: 1; min-width: 120px; background: transparent; border: none; outline: none; color: var(--fg); font-size: 12.5px; }
+  .tags-in::placeholder { color: var(--fg-faint); }
 
   .links { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; padding: 10px 18px; border-bottom: 1px solid var(--border-soft); }
   .links-label { font-size: 10px; text-transform: uppercase; letter-spacing: 0.6px; color: var(--fg-faint); margin-right: 2px; }

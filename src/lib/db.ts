@@ -87,15 +87,15 @@ export async function createProject(areaId: string, name: string): Promise<Proje
   const t = now();
   const p: Project = {
     id: crypto.randomUUID(), name, area_id: areaId, status: "in_progress",
-    priority: "medium", description: "", due_at: null, archived: 0, created_at: t, updated_at: t,
+    priority: "medium", description: "", due_at: null, pinned: 0, archived: 0, created_at: t, updated_at: t,
   };
   await conn.execute(
-    "INSERT INTO projects (id, name, area_id, status, priority, description, due_at, archived, created_at, updated_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)",
-    [p.id, p.name, p.area_id, p.status, p.priority, p.description, p.due_at, p.archived, p.created_at, p.updated_at],
+    "INSERT INTO projects (id, name, area_id, status, priority, description, due_at, pinned, archived, created_at, updated_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)",
+    [p.id, p.name, p.area_id, p.status, p.priority, p.description, p.due_at, p.pinned, p.archived, p.created_at, p.updated_at],
   );
   return p;
 }
-export async function updateProject(id: string, patch: Partial<Pick<Project, "name" | "status" | "priority" | "description" | "due_at" | "archived">>): Promise<void> {
+export async function updateProject(id: string, patch: Partial<Pick<Project, "name" | "status" | "priority" | "description" | "due_at" | "pinned" | "archived">>): Promise<void> {
   const conn = await db();
   const { clause, values, next } = setClause(patch);
   if (!clause) return;
@@ -127,7 +127,7 @@ export async function listProjectsAll(): Promise<(Project & { area_name: string 
   const conn = await db();
   return conn.select(
     `SELECT p.*, a.name AS area_name FROM projects p JOIN areas a ON a.id = p.area_id
-      WHERE p.archived = 0 ORDER BY (p.status = 'done') ASC, p.due_at IS NULL, p.due_at ASC, p.updated_at DESC`,
+      WHERE p.archived = 0 ORDER BY p.pinned DESC, (p.status = 'done') ASC, p.due_at IS NULL, p.due_at ASC, p.updated_at DESC`,
   );
 }
 // All non-archived tasks with their area + project (for the Areas overview).
@@ -146,26 +146,38 @@ export async function allAreaTasks(): Promise<(Task & { area_id: string; project
 export async function listTasks(projectId: string, archived = false): Promise<Task[]> {
   const conn = await db();
   return conn.select<Task[]>(
-    "SELECT * FROM tasks WHERE project_id = $1 AND archived = $2 ORDER BY status ASC, due_at IS NULL, due_at ASC, updated_at DESC",
+    "SELECT * FROM tasks WHERE project_id = $1 AND archived = $2 ORDER BY (status = 'done') ASC, sort_order ASC, created_at ASC",
     [projectId, archived ? 1 : 0],
   );
 }
 export async function createTask(projectId: string, title: string): Promise<Task> {
   const conn = await db();
   const t = now();
-  const task: Task = { id: crypto.randomUUID(), title, project_id: projectId, status: "todo", due_at: null, archived: 0, created_at: t, updated_at: t };
+  // Place new tasks at the end (max sort_order + 1 within the project).
+  const mx = await conn.select<{ m: number | null }[]>(
+    "SELECT MAX(sort_order) AS m FROM tasks WHERE project_id = $1", [projectId],
+  );
+  const sort_order = (mx[0]?.m ?? 0) + 1;
+  const task: Task = { id: crypto.randomUUID(), title, project_id: projectId, status: "todo", due_at: null, sort_order, archived: 0, created_at: t, updated_at: t };
   await conn.execute(
-    "INSERT INTO tasks (id, title, project_id, status, due_at, archived, created_at, updated_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8)",
-    [task.id, task.title, task.project_id, task.status, task.due_at, task.archived, task.created_at, task.updated_at],
+    "INSERT INTO tasks (id, title, project_id, status, due_at, sort_order, archived, created_at, updated_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)",
+    [task.id, task.title, task.project_id, task.status, task.due_at, task.sort_order, task.archived, task.created_at, task.updated_at],
   );
   return task;
 }
-export async function updateTask(id: string, patch: Partial<Pick<Task, "title" | "status" | "due_at" | "archived">>): Promise<void> {
+export async function updateTask(id: string, patch: Partial<Pick<Task, "title" | "status" | "due_at" | "sort_order" | "archived">>): Promise<void> {
   const conn = await db();
   const { clause, values, next } = setClause(patch);
   if (!clause) return;
   values.push(now(), id);
-  await conn.execute(`UPDATE tasks SET ${clause}, updated_at = $${next} WHERE id = $${next + 1}`, values);
+  await conn.execute("UPDATE tasks SET " + clause + ", updated_at = $" + next + " WHERE id = $" + (next + 1), values);
+}
+// Persist a new ordering for a set of task ids (index = sort_order).
+export async function reorderTasks(ids: string[]): Promise<void> {
+  const conn = await db();
+  for (let i = 0; i < ids.length; i++) {
+    await conn.execute("UPDATE tasks SET sort_order = $1 WHERE id = $2", [i, ids[i]]);
+  }
 }
 export async function deleteTask(id: string): Promise<void> {
   const conn = await db();
@@ -208,7 +220,7 @@ export async function listProjectsWithPreview(taskLimit = 4, noteLimit = 3): Pro
   const projects = await conn.select<(Project & { area_name: string })[]>(
     `SELECT p.*, a.name AS area_name FROM projects p JOIN areas a ON a.id = p.area_id
       WHERE p.archived = 0
-      ORDER BY (p.status = 'done') ASC, p.due_at IS NULL, p.due_at ASC, p.updated_at DESC`,
+      ORDER BY p.pinned DESC, (p.status = 'done') ASC, p.due_at IS NULL, p.due_at ASC, p.updated_at DESC`,
   );
   if (projects.length === 0) return [];
 
@@ -303,6 +315,8 @@ export interface ResourceRow {
   id: string;
   title: string;
   content: string;
+  tags: string;
+  pinned: number;
   updated_at: number;
   context: string;     // e.g. "Website Redesign" / "Health & Fitness +1" / "Inbox"
   areaIds: string[];   // areas this resource relates to (for filtering)
@@ -311,7 +325,7 @@ export interface ResourceRow {
 export async function listResourcesWithContext(): Promise<ResourceRow[]> {
   const conn = await db();
   const resources = await conn.select<Resource[]>(
-    "SELECT * FROM resources WHERE archived = 0 ORDER BY updated_at DESC",
+    "SELECT * FROM resources WHERE archived = 0 ORDER BY pinned DESC, updated_at DESC",
   );
   const links = await conn.select<
     { resource_id: string; target_type: LinkTargetType; label: string | null; area_id: string | null }[]
@@ -345,27 +359,27 @@ export async function listResourcesWithContext(): Promise<ResourceRow[]> {
     if (labels.length === 1) context = labels[0];
     else if (labels.length > 1) context = labels[0] + " +" + (labels.length - 1);
     return {
-      id: r.id, title: r.title, content: r.content, updated_at: r.updated_at,
-      context, areaIds: [...(e?.areas ?? [])], linkCount: labels.length,
+      id: r.id, title: r.title, content: r.content, tags: r.tags ?? "", pinned: r.pinned ?? 0,
+      updated_at: r.updated_at, context, areaIds: [...(e?.areas ?? [])], linkCount: labels.length,
     };
   });
 }
 export async function createResource(title = "", content = ""): Promise<Resource> {
   const conn = await db();
   const t = now();
-  const r: Resource = { id: crypto.randomUUID(), title, content, archived: 0, created_at: t, updated_at: t };
+  const r: Resource = { id: crypto.randomUUID(), title, content, tags: "", pinned: 0, archived: 0, created_at: t, updated_at: t };
   await conn.execute(
-    "INSERT INTO resources (id, title, content, archived, created_at, updated_at) VALUES ($1,$2,$3,$4,$5,$6)",
-    [r.id, r.title, r.content, r.archived, r.created_at, r.updated_at],
+    "INSERT INTO resources (id, title, content, tags, pinned, archived, created_at, updated_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8)",
+    [r.id, r.title, r.content, r.tags, r.pinned, r.archived, r.created_at, r.updated_at],
   );
   return r;
 }
-export async function updateResource(id: string, patch: Partial<Pick<Resource, "title" | "content" | "archived">>): Promise<void> {
+export async function updateResource(id: string, patch: Partial<Pick<Resource, "title" | "content" | "tags" | "pinned" | "archived">>): Promise<void> {
   const conn = await db();
   const { clause, values, next } = setClause(patch);
   if (!clause) return;
   values.push(now(), id);
-  await conn.execute(`UPDATE resources SET ${clause}, updated_at = $${next} WHERE id = $${next + 1}`, values);
+  await conn.execute("UPDATE resources SET " + clause + ", updated_at = $" + next + " WHERE id = $" + (next + 1), values);
 }
 export async function deleteResource(id: string): Promise<void> {
   const conn = await db();

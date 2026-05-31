@@ -3,6 +3,7 @@
   import { relativeDue, relativeAgo } from "$lib/date";
   import { viewMode } from "$lib/viewmode.svelte";
   import PageHeader from "$lib/components/PageHeader.svelte";
+  import EmptyState from "$lib/components/EmptyState.svelte";
   import type { ProjectStatus } from "$lib/types";
 
   const statusLabel: Record<ProjectStatus, string> = {
@@ -87,7 +88,11 @@
     {#if store.loading}
       <p class="muted">loading…</p>
     {:else if store.projectPreviews.length === 0}
-      <p class="muted">No projects yet. Create one inside an area.</p>
+      <EmptyState
+        icon="▸" color="var(--proj)" title="No projects yet"
+        message="Projects have a goal and a deadline, and live inside an area. Create your first one to get started."
+        actionLabel="▸ New Project" onAction={addProject}
+      />
     {:else if displayed.length === 0}
       <p class="muted">No projects match this filter.</p>
     {:else if viewMode.mode === "compact"}
@@ -95,7 +100,8 @@
         {#each displayed as bundle (bundle.project.id)}
           {@const p = bundle.project}
           {@const c = bundle.taskCounts}
-          <li>
+          <li class="crow-wrap">
+            <button class="cpin" class:on={p.pinned} title={p.pinned ? "Unpin" : "Pin"} onclick={() => store.toggleProjectPinned(p.id)}>{p.pinned ? "★" : "☆"}</button>
             <button class="crow" class:done={p.status === "done"} onclick={() => store.openProject(p.id, p.area_id)}>
               <span class="cg">▸</span>
               <span class="cname">{p.name || "Untitled"}</span>
@@ -118,6 +124,7 @@
               <span class="g">▸</span>{p.name || "Untitled"}
             </button>
             <div class="p-meta">
+              <button class="pcardpin" class:on={p.pinned} title={p.pinned ? "Unpin" : "Pin"} onclick={() => store.toggleProjectPinned(p.id)}>{p.pinned ? "★" : "☆"}</button>
               <button class="area-tag" onclick={() => store.openArea(p.area_id)}>◆ {p.area_name}</button>
               {#if p.due_at != null}{@const d = relativeDue(p.due_at)}<span class="due {d.tone}">▦ {d.label}</span>{/if}
               <span class="pill {p.status}">{statusLabel[p.status]}</span>
@@ -192,9 +199,11 @@
 
   /* compact list */
   .clist { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
-  .crow { display: flex; align-items: center; gap: 12px; width: 100%; text-align: left; padding: 9px 12px; border-radius: 9px; background: var(--bg-inset); border: 1px solid var(--border-soft); transition: border-color 0.12s, background 0.12s; }
+  .crow-wrap { display: flex; align-items: center; gap: 4px; }
+  .crow { flex: 1; min-width: 0; display: flex; align-items: center; gap: 12px; text-align: left; padding: 9px 12px; border-radius: 9px; background: var(--bg-inset); border: 1px solid var(--border-soft); transition: border-color 0.12s, background 0.12s; }
   .crow:hover { border-color: var(--border); background: var(--bg-elev); }
   .cg { color: var(--c); font-size: 11px; flex: 0 0 auto; }
+  .cpin { font-size: 12px; color: var(--fg-faint); flex: 0 0 auto; padding: 0 2px; } .cpin:hover { color: var(--res); } .cpin.on { color: var(--res); }
   .cname { flex: 1; min-width: 0; color: var(--fg); font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .crow.done .cname { color: var(--fg-faint); text-decoration: line-through; }
   .carea { font-size: 11px; color: var(--area); flex: 0 0 auto; }
@@ -213,6 +222,7 @@
   .p-name .g { color: var(--c); font-size: 12px; }
   .p-name:hover { color: var(--c); }
   .p-meta { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .pcardpin { font-size: 13px; color: var(--fg-faint); padding: 0 2px; } .pcardpin:hover { color: var(--res); } .pcardpin.on { color: var(--res); }
   .area-tag { font-size: 11px; color: var(--area); border: 1px solid color-mix(in srgb, var(--area) 35%, transparent); border-radius: 12px; padding: 3px 9px; }
   .area-tag:hover { background: color-mix(in srgb, var(--area) 12%, transparent); }
   .due { font-size: 11px; color: var(--fg-dim); } .due.soon { color: var(--accent); } .due.over { color: var(--danger); }

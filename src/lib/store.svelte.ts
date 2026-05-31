@@ -549,6 +549,17 @@ class DanoStore {
       if (this.activeProjectId === id) this.projectActivity = await db.listActivity(id);
     } catch (e) { this.#fail(e); }
   }
+  async toggleProjectPinned(id: string) {
+    const cur = this.allProjects.find((p) => p.id === id)?.pinned
+      ?? this.activeProjectObj?.pinned ?? 0;
+    const pinned = cur ? 0 : 1;
+    this.#patchProject(id, { pinned });
+    try {
+      await db.updateProject(id, { pinned });
+      // Re-sort the browse list so pinned float to top.
+      if (this.view === "projects") this.projectPreviews = await db.listProjectsWithPreview();
+    } catch (e) { this.#fail(e); }
+  }
   async archiveProject(id: string) {
     const areaId = this.activeProject?.area_id ?? this.activeAreaId;
     try {
@@ -601,6 +612,12 @@ class DanoStore {
   }
   async deleteTask(id: string) {
     try { await db.deleteTask(id); this.tasks = this.tasks.filter((t) => t.id !== id); } catch (e) { this.#fail(e); }
+  }
+  // Reorder tasks within the open project (ids in new order).
+  async reorderTasks(ids: string[]) {
+    const map = new Map(this.tasks.map((t) => [t.id, t]));
+    this.tasks = ids.map((id) => map.get(id)!).filter(Boolean);
+    try { await db.reorderTasks(ids); } catch (e) { this.#fail(e); }
   }
 
   // Add a task to a specific project (used by the Areas overview), then refresh.
@@ -659,6 +676,30 @@ class DanoStore {
     const id = r.id;
     if (this.#saveTimer) clearTimeout(this.#saveTimer);
     this.#saveTimer = setTimeout(() => { db.updateResource(id, patch).catch((e) => this.#fail(e)); }, 350);
+  }
+
+  // Set the comma-separated tag list on the open resource (debounced).
+  setResourceTags(tags: string) {
+    const r = this.activeResource;
+    if (!r) return;
+    r.tags = tags;
+    r.updated_at = Date.now();
+    const id = r.id;
+    if (this.#saveTimer) clearTimeout(this.#saveTimer);
+    this.#saveTimer = setTimeout(() => { db.updateResource(id, { tags }).catch((e) => this.#fail(e)); }, 350);
+  }
+
+  // Toggle pinned on a resource (from the table or the editor).
+  async toggleResourcePinned(id: string) {
+    const row = this.resourceRows.find((r) => r.id === id);
+    const cur = row?.pinned ?? this.resourceCache[id]?.pinned ?? 0;
+    const pinned = cur ? 0 : 1;
+    if (row) row.pinned = pinned;
+    if (this.resourceCache[id]) this.resourceCache[id].pinned = pinned;
+    try {
+      await db.updateResource(id, { pinned });
+      if (this.view === "resources") this.resourceRows = await db.listResourcesWithContext();
+    } catch (e) { this.#fail(e); }
   }
 
   async loadPickers() {
