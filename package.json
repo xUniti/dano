@@ -1,6 +1,6 @@
 {
   "name": "dano",
-  "version": "0.1.0",
+  "version": "0.5.0",
   "description": "DANO — local-first PARA workspace (notes, tasks, projects, CRM, calendar). By xUniti.",
   "type": "module",
   "scripts": {
