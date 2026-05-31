@@ -1,7 +1,5 @@
 <script lang="ts">
   import { store } from "$lib/store.svelte";
-  import { theme } from "$lib/theme.svelte";
-  import { zoom } from "$lib/zoom.svelte";
 
   const nav = $derived(store.view);
 </script>
@@ -52,16 +50,10 @@
   </nav>
 
   <div class="foot">
-    <div class="zoom" title="Zoom (Ctrl + / - / 0)">
-      <button class="z-btn" onclick={() => zoom.out()} disabled={zoom.atMin} aria-label="Zoom out">−</button>
-      <button class="z-val" onclick={() => zoom.reset()} title="Reset zoom">{zoom.percent}%</button>
-      <button class="z-btn" onclick={() => zoom.in()} disabled={zoom.atMax} aria-label="Zoom in">+</button>
-    </div>
-    <button class="theme" onclick={() => theme.toggle()} title="Toggle theme">
-      <span class="glyph">{theme.value === "dark" ? "☾" : "☀"}</span>
-      <span class="label">{theme.value === "dark" ? "Dark" : "Light"}</span>
+    <button class="row" class:active={nav === "settings"} onclick={() => store.openSettings()}>
+      <span class="glyph">⚙</span><span class="label">Settings</span>
     </button>
-    <div class="version">v0.4 · xUniti</div>
+    <div class="version">v0.5 · xUniti</div>
   </div>
 </aside>
 
@@ -121,27 +113,5 @@
   .add:hover { background: var(--bg-elev); color: var(--accent); }
 
   .foot { padding: 10px; border-top: 1px solid var(--border-soft); }
-  .zoom {
-    display: flex; align-items: center; gap: 4px; margin-bottom: 4px;
-    background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 3px;
-  }
-  .z-btn {
-    width: 26px; height: 24px; color: var(--fg-dim); font-size: 15px; border-radius: 6px;
-    display: flex; align-items: center; justify-content: center;
-    transition: background 0.12s, color 0.12s;
-  }
-  .z-btn:hover:not(:disabled) { background: var(--bg-elev); color: var(--fg); }
-  .z-btn:disabled { opacity: 0.35; cursor: default; }
-  .z-val {
-    flex: 1; text-align: center; font-size: 11px; color: var(--fg-faint);
-    font-variant-numeric: tabular-nums; border-radius: 6px; padding: 4px 0;
-  }
-  .z-val:hover { background: var(--bg-elev); color: var(--fg); }
-  .theme {
-    display: flex; align-items: center; gap: 10px; width: 100%;
-    padding: 7px 9px; border-radius: 8px; color: var(--fg-dim);
-    text-align: left; transition: background 0.12s, color 0.12s;
-  }
-  .theme:hover { background: var(--bg-elev); color: var(--fg); }
   .version { padding: 8px 9px 4px; font-family: var(--font-mono); font-size: 10px; color: var(--fg-faint); letter-spacing: 0.4px; }
 </style>

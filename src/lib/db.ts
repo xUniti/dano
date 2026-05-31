@@ -775,4 +775,91 @@ export async function removeContactProject(linkId: string): Promise<void> {
   await conn.execute("DELETE FROM contact_links WHERE id = $1", [linkId]);
 }
 
+/* ---------- Backup / restore (content export & import) ---------- */
+
+// All content tables, in dependency order (parents before children) so a
+// Replace import can insert without violating logical references.
+const CONTENT_TABLES = [
+  "areas", "projects", "tasks", "resources", "resource_links",
+  "events", "contacts", "contact_dates", "contact_links", "activity",
+] as const;
+type ContentTable = (typeof CONTENT_TABLES)[number];
+
+export interface ContentBackup {
+  format: "dano-content";
+  version: number;
+  exported_at: number;
+  tables: Record<string, Record<string, unknown>[]>;
+}
+
+export async function exportContent(): Promise<ContentBackup> {
+  const conn = await db();
+  const tables: Record<string, Record<string, unknown>[]> = {};
+  for (const t of CONTENT_TABLES) {
+    tables[t] = await conn.select<Record<string, unknown>[]>(`SELECT * FROM ${t}`);
+  }
+  return { format: "dano-content", version: 1, exported_at: now(), tables };
+}
+
+function columnsOf(rows: Record<string, unknown>[]): string[] {
+  const cols = new Set<string>();
+  for (const r of rows) for (const k of Object.keys(r)) cols.add(k);
+  return [...cols];
+}
+
+// Import content. mode "replace" wipes all content tables first; mode "merge"
+// keeps existing rows and only inserts rows whose id is not already present.
+export async function importContent(backup: ContentBackup, mode: "replace" | "merge"): Promise<{ inserted: number; skipped: number }> {
+  if (!backup || backup.format !== "dano-content" || !backup.tables) {
+    throw new Error("Not a valid DANO content backup file.");
+  }
+  const conn = await db();
+  let inserted = 0;
+  let skipped = 0;
+
+  if (mode === "replace") {
+    // Delete children-first to avoid leaving orphans mid-way.
+    for (const t of [...CONTENT_TABLES].reverse()) {
+      await conn.execute(`DELETE FROM ${t}`);
+    }
+  }
+
+  for (const t of CONTENT_TABLES) {
+    const rows = backup.tables[t] ?? [];
+    if (rows.length === 0) continue;
+
+    // Existing ids (for merge skip).
+    let existing = new Set<string>();
+    if (mode === "merge") {
+      const ex = await conn.select<{ id: string }[]>(`SELECT id FROM ${t}`);
+      existing = new Set(ex.map((r) => r.id));
+    }
+
+    for (const row of rows) {
+      const id = row.id as string | undefined;
+      if (mode === "merge" && id && existing.has(id)) { skipped++; continue; }
+      const cols = columnsOf([row]);
+      if (cols.length === 0) continue;
+      const placeholders = cols.map((_, i) => "$" + (i + 1)).join(",");
+      const values = cols.map((c) => (row[c] === undefined ? null : row[c]));
+      await conn.execute(
+        `INSERT OR IGNORE INTO ${t} (${cols.join(",")}) VALUES (${placeholders})`,
+        values,
+      );
+      inserted++;
+    }
+  }
+  return { inserted, skipped };
+}
+
+// Wipe all user content (keeps the schema). Used by "Clear all".
+export async function clearAllContent(): Promise<void> {
+  const conn = await db();
+  for (const t of [...CONTENT_TABLES].reverse()) {
+    await conn.execute(`DELETE FROM ${t}`);
+  }
+}
+
+export type { ContentTable };
+
 export type { Contact, ContactDate };

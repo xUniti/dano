@@ -3,6 +3,7 @@
   import { onMount } from "svelte";
   import { theme } from "$lib/theme.svelte";
   import { zoom } from "$lib/zoom.svelte";
+  import { font } from "$lib/font.svelte";
   import { viewMode } from "$lib/viewmode.svelte";
   import { store } from "$lib/store.svelte";
 
@@ -11,6 +12,7 @@
   onMount(() => {
     theme.init();
     zoom.init();
+    font.init();
     viewMode.init();
     store.init();
 

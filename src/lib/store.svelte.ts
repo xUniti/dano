@@ -6,7 +6,7 @@ import type {
 import * as db from "./db";
 import type { DetailedLink } from "./db";
 
-type View = "dashboard" | "area" | "project" | "resources" | "resource" | "archive" | "calendar" | "contacts" | "contact" | "projects" | "areas" | "search";
+type View = "dashboard" | "area" | "project" | "resources" | "resource" | "archive" | "calendar" | "contacts" | "contact" | "projects" | "areas" | "search" | "settings";
 type CalMode = "month" | "week" | "agenda";
 
 class DanoStore {
@@ -244,6 +244,43 @@ class DanoStore {
     this.view = "search";
     this.activeResourceId = null;
     void this.loadCounts();
+  }
+
+  openSettings() {
+    this.view = "settings";
+    this.activeResourceId = null;
+  }
+
+  /* ---- data: backup / restore ---- */
+
+  async exportContentJSON(): Promise<string> {
+    const backup = await db.exportContent();
+    return JSON.stringify(backup, null, 2);
+  }
+
+  // Import content from a parsed JSON object. Returns a summary string.
+  async importContentJSON(json: unknown, mode: "replace" | "merge"): Promise<string> {
+    const res = await db.importContent(json as db.ContentBackup, mode);
+    await this.#reloadAfterDataChange();
+    return `Imported ${res.inserted} item${res.inserted === 1 ? "" : "s"}` +
+      (res.skipped ? `, skipped ${res.skipped} duplicate${res.skipped === 1 ? "" : "s"}.` : ".");
+  }
+
+  async clearAllData(): Promise<void> {
+    await db.clearAllContent();
+    await this.#reloadAfterDataChange();
+  }
+
+  // After a bulk data change, refresh everything the current view relies on.
+  async #reloadAfterDataChange() {
+    await this.loadAreas();
+    await this.loadCounts();
+    // Re-fetch data for whichever browse view is active.
+    if (this.view === "projects") this.projectPreviews = await db.listProjectsWithPreview();
+    else if (this.view === "areas") {
+      const [projects, tasks] = await Promise.all([db.listProjectsAll(), db.allAreaTasks()]);
+      this.allProjects = projects; this.areaTasksAll = tasks;
+    } else if (this.view === "resources") this.resourceRows = await db.listResourcesWithContext();
   }
 
   async doSearch(q: string) {

@@ -12,6 +12,7 @@
   import ProjectsBrowse from "$lib/components/ProjectsBrowse.svelte";
   import AreasBrowse from "$lib/components/AreasBrowse.svelte";
   import Search from "$lib/components/Search.svelte";
+  import Settings from "$lib/components/Settings.svelte";
   import { store } from "$lib/store.svelte";
 </script>
 
@@ -25,6 +26,8 @@
       <Calendar />
     {:else if store.view === "search"}
       <Search />
+    {:else if store.view === "settings"}
+      <Settings />
     {:else if store.view === "projects"}
       <ProjectsBrowse />
     {:else if store.view === "areas"}
