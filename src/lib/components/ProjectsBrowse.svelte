@@ -1,6 +1,7 @@
 <script lang="ts">
   import { store } from "$lib/store.svelte";
   import { relativeDue, relativeAgo } from "$lib/date";
+  import { viewMode } from "$lib/viewmode.svelte";
   import PageHeader from "$lib/components/PageHeader.svelte";
   import type { ProjectStatus } from "$lib/types";
 
@@ -22,13 +23,34 @@
 </script>
 
 <section class="view">
-  <PageHeader icon="▸" title="Projects" color="var(--proj)" count={store.counts.projects} actionLabel="▸ New Project" onAction={addProject} />
+  <PageHeader
+    icon="▸" title="Projects" color="var(--proj)" count={store.counts.projects}
+    actionLabel="▸ New Project" onAction={addProject}
+    view={viewMode.mode} onView={(v) => viewMode.set(v)}
+  />
 
   <div class="scroll">
     {#if store.loading}
       <p class="muted">loading…</p>
     {:else if store.projectPreviews.length === 0}
       <p class="muted">No projects yet. Create one inside an area.</p>
+    {:else if viewMode.mode === "compact"}
+      <ul class="clist">
+        {#each store.projectPreviews as bundle (bundle.project.id)}
+          {@const p = bundle.project}
+          {@const c = bundle.taskCounts}
+          <li>
+            <button class="crow" class:done={p.status === "done"} onclick={() => store.openProject(p.id, p.area_id)}>
+              <span class="cg">▸</span>
+              <span class="cname">{p.name || "Untitled"}</span>
+              <span class="carea">◆ {p.area_name}</span>
+              {#if c.total > 0}<span class="ctasks">{c.done}/{c.total}</span>{/if}
+              {#if p.due_at != null}{@const d = relativeDue(p.due_at)}<span class="cdue {d.tone}">{d.label}</span>{/if}
+              <span class="cpill {p.status}">{statusLabel[p.status]}</span>
+            </button>
+          </li>
+        {/each}
+      </ul>
     {:else}
       {#each store.projectPreviews as bundle (bundle.project.id)}
         {@const p = bundle.project}
@@ -102,8 +124,25 @@
 
 <style>
   .view { flex: 1; height: 100%; display: flex; flex-direction: column; background: var(--bg); min-width: 0; --c: var(--proj); }
-  .scroll { flex: 1; overflow-y: auto; padding: 16px 28px 32px; max-width: 1100px; }
+  .scroll { flex: 1; overflow-y: auto; padding: 16px 28px 32px; }
   .muted { color: var(--fg-faint); font-size: 12px; padding: 10px 2px; }
+
+  /* compact list */
+  .clist { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
+  .crow { display: flex; align-items: center; gap: 12px; width: 100%; text-align: left; padding: 9px 12px; border-radius: 9px; background: var(--bg-inset); border: 1px solid var(--border-soft); transition: border-color 0.12s, background 0.12s; }
+  .crow:hover { border-color: var(--border); background: var(--bg-elev); }
+  .cg { color: var(--c); font-size: 11px; flex: 0 0 auto; }
+  .cname { flex: 1; min-width: 0; color: var(--fg); font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .crow.done .cname { color: var(--fg-faint); text-decoration: line-through; }
+  .carea { font-size: 11px; color: var(--area); flex: 0 0 auto; }
+  .ctasks { font-size: 10.5px; color: var(--fg-faint); flex: 0 0 auto; font-variant-numeric: tabular-nums; }
+  .cdue { font-size: 10.5px; color: var(--fg-dim); flex: 0 0 auto; min-width: 48px; text-align: right; }
+  .cdue.soon { color: var(--accent); } .cdue.over { color: var(--danger); }
+  .cpill { font-size: 9.5px; padding: 2px 8px; border-radius: 9px; font-weight: 600; flex: 0 0 auto; }
+  .cpill.planned { color: var(--fg-faint); background: var(--bg-elev); }
+  .cpill.in_progress { color: var(--proj); background: color-mix(in srgb, var(--proj) 16%, transparent); }
+  .cpill.ongoing { color: var(--accent); background: color-mix(in srgb, var(--accent) 16%, transparent); }
+  .cpill.done { color: var(--fg-faint); background: var(--bg-elev); }
 
   .pcard { background: var(--bg-inset); border: 1px solid var(--border); border-radius: 12px; margin-bottom: 16px; overflow: hidden; }
   .p-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 16px 12px; flex-wrap: wrap; }

@@ -1,6 +1,7 @@
 <script lang="ts">
   import { store } from "$lib/store.svelte";
   import { relativeDue } from "$lib/date";
+  import { viewMode } from "$lib/viewmode.svelte";
   import PageHeader from "$lib/components/PageHeader.svelte";
   import type { ProjectStatus } from "$lib/types";
 
@@ -23,14 +24,34 @@
 </script>
 
 <section class="view">
-  <PageHeader icon="◆" title="Areas" color="var(--area)" count={store.counts.areas} actionLabel="◆ New Area" onAction={() => store.addArea()} />
+  <PageHeader
+    icon="◆" title="Areas" color="var(--area)" count={store.counts.areas}
+    actionLabel="◆ New Area" onAction={() => store.addArea()}
+    view={viewMode.mode} onView={(v) => viewMode.set(v)}
+  />
 
   <div class="scroll">
-    <div class="note">Areas are ongoing responsibilities with no end date — they contain Projects and their Tasks.</div>
-
     {#if store.areas.length === 0}
       <p class="muted">No areas yet. Create one to organize your projects.</p>
+    {:else if viewMode.mode === "compact"}
+      <ul class="clist">
+        {#each store.areas as area (area.id)}
+          {@const projects = projectsOf(area.id)}
+          {@const tasks = tasksOf(area.id)}
+          {@const openTasks = tasks.filter((t) => t.status !== "done").length}
+          <li>
+            <button class="crow" onclick={() => store.openArea(area.id)}>
+              <span class="cg">◆</span>
+              <span class="cname">{area.name || "Untitled"}</span>
+              <span class="cmeta">{projects.length} project{projects.length === 1 ? "" : "s"}</span>
+              <span class="cmeta">{openTasks} open task{openTasks === 1 ? "" : "s"}</span>
+              <span class="chev">›</span>
+            </button>
+          </li>
+        {/each}
+      </ul>
     {:else}
+      <div class="note">Areas are ongoing responsibilities with no end date — they contain Projects and their Tasks.</div>
       {#each store.areas as area (area.id)}
         {@const projects = projectsOf(area.id)}
         {@const tasks = tasksOf(area.id)}
@@ -95,9 +116,18 @@
 <style>
   .view { flex: 1; height: 100%; display: flex; flex-direction: column; background: var(--bg); min-width: 0; --c: var(--area); }
 
-  .scroll { flex: 1; overflow-y: auto; padding: 16px 28px 32px; max-width: 1100px; }
+  .scroll { flex: 1; overflow-y: auto; padding: 16px 28px 32px; }
   .note { display: flex; align-items: center; gap: 8px; padding: 12px 14px; margin-bottom: 16px; background: var(--bg-inset); border: 1px solid var(--border-soft); border-radius: 10px; color: var(--fg-faint); font-size: 12px; }
   .muted { color: var(--fg-faint); font-size: 12px; }
+
+  /* compact list */
+  .clist { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
+  .crow { display: flex; align-items: center; gap: 12px; width: 100%; text-align: left; padding: 11px 12px; border-radius: 9px; background: var(--bg-inset); border: 1px solid var(--border-soft); transition: border-color 0.12s, background 0.12s; }
+  .crow:hover { border-color: var(--border); background: var(--bg-elev); }
+  .cg { color: var(--c); font-size: 11px; flex: 0 0 auto; }
+  .cname { flex: 1; min-width: 0; color: var(--fg); font-size: 13px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .cmeta { font-size: 11px; color: var(--fg-faint); flex: 0 0 auto; }
+  .chev { color: var(--fg-faint); font-size: 15px; flex: 0 0 auto; }
 
   .acard { background: var(--bg-inset); border: 1px solid var(--border); border-radius: 12px; margin-bottom: 16px; overflow: hidden; }
   .a-head { display: flex; align-items: center; justify-content: space-between; padding: 14px 16px; border-bottom: 1px solid var(--border-soft); }

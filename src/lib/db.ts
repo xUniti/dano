@@ -296,6 +296,60 @@ export async function listResourcesForTarget(type: LinkTargetType, targetId: str
     [type, targetId],
   );
 }
+
+// Resources (non-archived) with a context label + the set of area ids each
+// relates to (directly, or via a linked project/task). For the table view.
+export interface ResourceRow {
+  id: string;
+  title: string;
+  content: string;
+  updated_at: number;
+  context: string;     // e.g. "Website Redesign" / "Health & Fitness +1" / "Inbox"
+  areaIds: string[];   // areas this resource relates to (for filtering)
+  linkCount: number;
+}
+export async function listResourcesWithContext(): Promise<ResourceRow[]> {
+  const conn = await db();
+  const resources = await conn.select<Resource[]>(
+    "SELECT * FROM resources WHERE archived = 0 ORDER BY updated_at DESC",
+  );
+  const links = await conn.select<
+    { resource_id: string; target_type: LinkTargetType; label: string | null; area_id: string | null }[]
+  >(
+    `SELECT l.resource_id AS resource_id, l.target_type AS target_type,
+            CASE l.target_type
+              WHEN 'area' THEN (SELECT name FROM areas WHERE id = l.target_id)
+              WHEN 'project' THEN (SELECT name FROM projects WHERE id = l.target_id)
+              WHEN 'task' THEN (SELECT title FROM tasks WHERE id = l.target_id)
+              WHEN 'contact' THEN (SELECT name FROM contacts WHERE id = l.target_id)
+            END AS label,
+            CASE l.target_type
+              WHEN 'area' THEN l.target_id
+              WHEN 'project' THEN (SELECT area_id FROM projects WHERE id = l.target_id)
+              WHEN 'task' THEN (SELECT p.area_id FROM projects p JOIN tasks t ON t.project_id = p.id WHERE t.id = l.target_id)
+              ELSE NULL
+            END AS area_id
+       FROM resource_links l`,
+  );
+  const byRes = new Map<string, { labels: string[]; areas: Set<string> }>();
+  for (const l of links) {
+    const e = byRes.get(l.resource_id) ?? { labels: [], areas: new Set<string>() };
+    if (l.label) e.labels.push(l.label);
+    if (l.area_id) e.areas.add(l.area_id);
+    byRes.set(l.resource_id, e);
+  }
+  return resources.map((r) => {
+    const e = byRes.get(r.id);
+    const labels = e?.labels ?? [];
+    let context = "Inbox";
+    if (labels.length === 1) context = labels[0];
+    else if (labels.length > 1) context = labels[0] + " +" + (labels.length - 1);
+    return {
+      id: r.id, title: r.title, content: r.content, updated_at: r.updated_at,
+      context, areaIds: [...(e?.areas ?? [])], linkCount: labels.length,
+    };
+  });
+}
 export async function createResource(title = "", content = ""): Promise<Resource> {
   const conn = await db();
   const t = now();

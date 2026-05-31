@@ -8,6 +8,8 @@
     count = null,
     actionLabel = null,
     onAction,
+    view = null,
+    onView,
   }: {
     icon: string;
     title: string;
@@ -15,6 +17,8 @@
     count?: number | null;
     actionLabel?: string | null;
     onAction?: () => void;
+    view?: "compact" | "cards" | null;
+    onView?: (v: "compact" | "cards") => void;
   } = $props();
 </script>
 
@@ -25,7 +29,17 @@
     <span class="here"><span class="ico">{icon}</span>{title}</span>
     {#if count != null}<span class="cnt">{count}</span>{/if}
   </div>
-  {#if actionLabel && onAction}
+  {#if view && onView}
+    <div class="right">
+      <div class="vtoggle" role="group" aria-label="View mode">
+        <button class="vbtn" class:on={view === "compact"} onclick={() => onView("compact")} title="Compact list">≣</button>
+        <button class="vbtn" class:on={view === "cards"} onclick={() => onView("cards")} title="Cards">▦</button>
+      </div>
+      {#if actionLabel && onAction}
+        <button class="new" onclick={onAction}>{actionLabel}</button>
+      {/if}
+    </div>
+  {:else if actionLabel && onAction}
     <button class="new" onclick={onAction}>{actionLabel}</button>
   {/if}
 </header>
@@ -41,4 +55,9 @@
   .cnt { font-size: 11px; color: var(--fg-faint); border: 1px solid var(--border); border-radius: 10px; padding: 0 7px; flex: 0 0 auto; }
   .new { color: var(--c); font-size: 12.5px; padding: 7px 13px; border: 1px solid color-mix(in srgb, var(--c) 40%, transparent); border-radius: 8px; white-space: nowrap; flex: 0 0 auto; }
   .new:hover { background: color-mix(in srgb, var(--c) 12%, transparent); }
+  .right { display: flex; align-items: center; gap: 10px; flex: 0 0 auto; }
+  .vtoggle { display: flex; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 2px; gap: 2px; }
+  .vbtn { width: 28px; height: 24px; display: flex; align-items: center; justify-content: center; border-radius: 6px; color: var(--fg-faint); font-size: 13px; transition: background 0.12s, color 0.12s; }
+  .vbtn:hover { color: var(--fg); }
+  .vbtn.on { background: var(--bg-elev); color: var(--fg); }
 </style>

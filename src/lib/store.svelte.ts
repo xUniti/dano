@@ -36,6 +36,7 @@ class DanoStore {
 
   // Resources library + open resource
   library = $state<Resource[]>([]);
+  resourceRows = $state<Awaited<ReturnType<typeof db.listResourcesWithContext>>>([]);
   activeResourceId = $state<string | null>(null);
   resourceCache = $state<Record<string, Resource>>({});
   resourceLinks = $state<DetailedLink[]>([]);
@@ -297,7 +298,10 @@ class DanoStore {
     this.view = "resources";
     this.activeResourceId = null;
     this.loading = true;
-    try { this.library = await db.listResources(false); await this.loadCounts(); } catch (e) { this.#fail(e); } finally { this.loading = false; }
+    try {
+      this.resourceRows = await db.listResourcesWithContext();
+      await this.loadCounts();
+    } catch (e) { this.#fail(e); } finally { this.loading = false; }
   }
 
   async openResource(id: string, from: View = this.view) {

@@ -143,10 +143,10 @@
 {/if}
 
 <style>
-  .pv { flex: 1; height: 100%; overflow-y: auto; background: var(--bg); min-width: 0; display: flex; gap: 0; }
-  .main { flex: 1; min-width: 0; padding: 20px 26px 40px; max-width: 760px; }
-  .rail { flex: 0 0 300px; border-left: 1px solid var(--border-soft); padding: 18px; display: flex; flex-direction: column; gap: 14px; overflow-y: auto; }
-  @media (max-width: 900px) { .pv { flex-direction: column; } .rail { flex: none; border-left: none; border-top: 1px solid var(--border-soft); } }
+  .pv { flex: 1; height: 100%; overflow-y: auto; background: var(--bg); min-width: 0; display: flex; gap: 0; align-items: flex-start; }
+  .main { flex: 1; min-width: 0; padding: 20px 26px 40px; max-width: 860px; }
+  .rail { flex: 0 0 300px; align-self: stretch; border-left: 1px solid var(--border-soft); padding: 18px; display: flex; flex-direction: column; gap: 14px; }
+  @media (max-width: 980px) { .pv { flex-direction: column; } .rail { flex: none; width: 100%; border-left: none; border-top: 1px solid var(--border-soft); } }
 
   .crumbs { display: flex; align-items: center; gap: 7px; font-size: 12px; color: var(--fg-faint); margin-bottom: 14px; }
   .crumbs button { color: var(--fg-faint); } .crumbs button:hover { color: var(--fg); }
