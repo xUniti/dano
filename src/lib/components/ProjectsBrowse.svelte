@@ -20,6 +20,38 @@
     const first = content.split("\n").find((l) => l.trim());
     return first?.replace(/^#+\s*/, "").trim() || "Untitled";
   }
+
+  // Filter + sort controls
+  let fStatus = $state<"all" | ProjectStatus>("all");
+  let fArea = $state<string>("all");
+  let sortBy = $state<"recent" | "due" | "priority" | "name">("recent");
+
+  const prioRank: Record<string, number> = { high: 0, medium: 1, low: 2 };
+
+  const displayed = $derived.by(() => {
+    let list = store.projectPreviews.filter((b) => {
+      if (fStatus !== "all" && b.project.status !== fStatus) return false;
+      if (fArea !== "all" && b.project.area_id !== fArea) return false;
+      return true;
+    });
+    const sorted = [...list];
+    if (sortBy === "due") {
+      sorted.sort((a, b) => {
+        const da = a.project.due_at, db_ = b.project.due_at;
+        if (da == null && db_ == null) return 0;
+        if (da == null) return 1;
+        if (db_ == null) return -1;
+        return da - db_;
+      });
+    } else if (sortBy === "priority") {
+      sorted.sort((a, b) => prioRank[a.project.priority] - prioRank[b.project.priority]);
+    } else if (sortBy === "name") {
+      sorted.sort((a, b) => (a.project.name || "").localeCompare(b.project.name || ""));
+    } else {
+      sorted.sort((a, b) => b.project.updated_at - a.project.updated_at);
+    }
+    return sorted;
+  });
 </script>
 
 <section class="view">
@@ -29,14 +61,38 @@
     view={viewMode.mode} onView={(v) => viewMode.set(v)}
   />
 
+  <div class="toolbar">
+    <div class="filters">
+      <button class="chip" class:on={fStatus === "all"} onclick={() => (fStatus = "all")}>All</button>
+      <button class="chip" class:on={fStatus === "in_progress"} onclick={() => (fStatus = "in_progress")}>In Progress</button>
+      <button class="chip" class:on={fStatus === "planned"} onclick={() => (fStatus = "planned")}>Planned</button>
+      <button class="chip" class:on={fStatus === "ongoing"} onclick={() => (fStatus = "ongoing")}>Ongoing</button>
+      <button class="chip" class:on={fStatus === "done"} onclick={() => (fStatus = "done")}>Done</button>
+    </div>
+    <div class="selects">
+      <select bind:value={fArea} title="Filter by area">
+        <option value="all">All areas</option>
+        {#each store.areas as a (a.id)}<option value={a.id}>{a.name || "Untitled"}</option>{/each}
+      </select>
+      <select bind:value={sortBy} title="Sort">
+        <option value="recent">Recent</option>
+        <option value="due">Deadline</option>
+        <option value="priority">Priority</option>
+        <option value="name">Name</option>
+      </select>
+    </div>
+  </div>
+
   <div class="scroll">
     {#if store.loading}
       <p class="muted">loading…</p>
     {:else if store.projectPreviews.length === 0}
       <p class="muted">No projects yet. Create one inside an area.</p>
+    {:else if displayed.length === 0}
+      <p class="muted">No projects match this filter.</p>
     {:else if viewMode.mode === "compact"}
       <ul class="clist">
-        {#each store.projectPreviews as bundle (bundle.project.id)}
+        {#each displayed as bundle (bundle.project.id)}
           {@const p = bundle.project}
           {@const c = bundle.taskCounts}
           <li>
@@ -52,7 +108,7 @@
         {/each}
       </ul>
     {:else}
-      {#each store.projectPreviews as bundle (bundle.project.id)}
+      {#each displayed as bundle (bundle.project.id)}
         {@const p = bundle.project}
         {@const c = bundle.taskCounts}
         {@const pct = c.total ? Math.round((c.done / c.total) * 100) : 0}
@@ -124,7 +180,14 @@
 
 <style>
   .view { flex: 1; height: 100%; display: flex; flex-direction: column; background: var(--bg); min-width: 0; --c: var(--proj); }
-  .scroll { flex: 1; overflow-y: auto; padding: 16px 28px 32px; }
+  .toolbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 28px 4px; flex-wrap: wrap; }
+  .filters { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+  .chip { font-size: 12px; color: var(--fg-dim); background: var(--bg-inset); border: 1px solid var(--border-soft); border-radius: 8px; padding: 5px 11px; transition: border-color 0.12s, color 0.12s, background 0.12s; }
+  .chip:hover { color: var(--fg); border-color: var(--border); }
+  .chip.on { color: var(--proj); border-color: var(--proj); background: var(--proj-soft); }
+  .selects { display: flex; gap: 6px; flex: 0 0 auto; }
+  .selects select { background: var(--bg-inset); color: var(--fg-dim); border: 1px solid var(--border); border-radius: 8px; padding: 5px 8px; font-size: 12px; outline: none; }
+  .scroll { flex: 1; overflow-y: auto; padding: 12px 28px 32px; }
   .muted { color: var(--fg-faint); font-size: 12px; padding: 10px 2px; }
 
   /* compact list */

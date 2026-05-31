@@ -6,6 +6,8 @@
   import type { ProjectStatus } from "$lib/types";
 
   let taskMenu = $state<string | null>(null); // area id with open "add task" menu
+  let actionMenu = $state<string | null>(null); // area id with open "⋯" actions menu
+  let editingArea = $state<string | null>(null); // area id being renamed inline
 
   const statusLabel: Record<ProjectStatus, string> = {
     planned: "Planned", in_progress: "In Progress", ongoing: "Ongoing", done: "Done",
@@ -20,6 +22,20 @@
   function addTask(projectId: string) {
     store.addTaskToProject(projectId);
     taskMenu = null;
+  }
+
+  function startRename(areaId: string) {
+    editingArea = areaId;
+    actionMenu = null;
+  }
+  function commitRename(areaId: string, e: Event) {
+    const value = (e.target as HTMLInputElement).value;
+    store.renameArea(areaId, value);
+    editingArea = null;
+  }
+  function onRenameKey(areaId: string, e: KeyboardEvent) {
+    if (e.key === "Enter") { e.preventDefault(); commitRename(areaId, e); }
+    else if (e.key === "Escape") { e.preventDefault(); editingArea = null; }
   }
 </script>
 
@@ -40,13 +56,35 @@
           {@const tasks = tasksOf(area.id)}
           {@const openTasks = tasks.filter((t) => t.status !== "done").length}
           <li>
-            <button class="crow" onclick={() => store.openArea(area.id)}>
-              <span class="cg">◆</span>
-              <span class="cname">{area.name || "Untitled"}</span>
-              <span class="cmeta">{projects.length} project{projects.length === 1 ? "" : "s"}</span>
-              <span class="cmeta">{openTasks} open task{openTasks === 1 ? "" : "s"}</span>
-              <span class="chev">›</span>
-            </button>
+            <div class="crow-wrap">
+              {#if editingArea === area.id}
+                <!-- svelte-ignore a11y_autofocus -->
+                <input
+                  class="a-rename compact"
+                  value={area.name}
+                  autofocus
+                  onkeydown={(e) => onRenameKey(area.id, e)}
+                  onblur={(e) => commitRename(area.id, e)}
+                />
+              {:else}
+                <button class="crow" onclick={() => store.openArea(area.id)}>
+                  <span class="cg">◆</span>
+                  <span class="cname">{area.name || "Untitled"}</span>
+                  <span class="cmeta">{projects.length} project{projects.length === 1 ? "" : "s"}</span>
+                  <span class="cmeta">{openTasks} open task{openTasks === 1 ? "" : "s"}</span>
+                </button>
+              {/if}
+              <div class="menu-wrap">
+                <button class="icon-btn" title="More" onclick={() => (actionMenu = actionMenu === area.id ? null : area.id)}>⋯</button>
+                {#if actionMenu === area.id}
+                  <div class="menu">
+                    <button class="menu-item" onclick={() => startRename(area.id)}>Rename</button>
+                    <button class="menu-item" onclick={() => { actionMenu = null; store.confirmArchiveArea(area.id, area.name); }}>Archive</button>
+                    <button class="menu-item danger" onclick={() => { actionMenu = null; store.confirmDeleteArea(area.id, area.name); }}>Delete</button>
+                  </div>
+                {/if}
+              </div>
+            </div>
           </li>
         {/each}
       </ul>
@@ -57,7 +95,18 @@
         {@const tasks = tasksOf(area.id)}
         <div class="acard">
           <div class="a-head">
-            <button class="a-name" onclick={() => store.openArea(area.id)}>◆ {area.name || "Untitled"}</button>
+            {#if editingArea === area.id}
+              <!-- svelte-ignore a11y_autofocus -->
+              <input
+                class="a-rename"
+                value={area.name}
+                autofocus
+                onkeydown={(e) => onRenameKey(area.id, e)}
+                onblur={(e) => commitRename(area.id, e)}
+              />
+            {:else}
+              <button class="a-name" onclick={() => store.openArea(area.id)}>◆ {area.name || "Untitled"}</button>
+            {/if}
             <div class="a-actions">
               <button class="mini" onclick={() => store.addProject(area.id)}>▸ Add Project</button>
               <div class="menu-wrap">
@@ -68,6 +117,16 @@
                     {#each projects as p (p.id)}
                       <button class="menu-item" onclick={() => addTask(p.id)}>{p.name || "Untitled"}</button>
                     {/each}
+                  </div>
+                {/if}
+              </div>
+              <div class="menu-wrap">
+                <button class="icon-btn" title="More" onclick={() => (actionMenu = actionMenu === area.id ? null : area.id)}>⋯</button>
+                {#if actionMenu === area.id}
+                  <div class="menu">
+                    <button class="menu-item" onclick={() => startRename(area.id)}>Rename</button>
+                    <button class="menu-item" onclick={() => { actionMenu = null; store.confirmArchiveArea(area.id, area.name); }}>Archive</button>
+                    <button class="menu-item danger" onclick={() => { actionMenu = null; store.confirmDeleteArea(area.id, area.name); }}>Delete</button>
                   </div>
                 {/if}
               </div>
@@ -142,6 +201,13 @@
   .menu-label { font-size: 10px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--fg-faint); padding: 6px 8px 4px; }
   .menu-item { display: block; width: 100%; text-align: left; font-size: 12px; color: var(--fg-dim); padding: 6px 8px; border-radius: 6px; }
   .menu-item:hover { background: var(--bg-inset); color: var(--fg); }
+  .menu-item.danger:hover { color: var(--danger); }
+  .icon-btn { width: 28px; height: 28px; display: inline-flex; align-items: center; justify-content: center; color: var(--fg-faint); font-size: 16px; border: 1px solid var(--border); border-radius: 7px; }
+  .icon-btn:hover { background: var(--bg-elev); color: var(--fg); }
+  .a-rename { flex: 1; min-width: 0; background: var(--bg); border: 1px solid var(--area); border-radius: 7px; padding: 6px 10px; font-size: 15px; font-weight: 700; color: var(--fg); outline: none; }
+  .a-rename.compact { font-size: 13px; font-weight: 600; }
+  .crow-wrap { display: flex; align-items: center; gap: 6px; }
+  .crow-wrap .crow { flex: 1; }
 
   .cols { display: grid; grid-template-columns: 1fr 1fr; }
   @media (max-width: 720px) { .cols { grid-template-columns: 1fr; } }

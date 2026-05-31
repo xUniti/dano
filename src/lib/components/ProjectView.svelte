@@ -8,6 +8,23 @@
   const progress = $derived(store.projectProgress);
   const pct = $derived(progress.total ? Math.round((progress.done / progress.total) * 100) : 0);
 
+  let linking = $state(false);
+  let pickContact = $state("");
+  // Contacts not already linked to this project.
+  const availableContacts = $derived(
+    store.pickContacts.filter((c) => !store.projectContacts.some((pc) => pc.id === c.id)),
+  );
+  async function startLink() {
+    await store.ensureContactsLoaded();
+    linking = true;
+  }
+  async function doLink() {
+    if (!pickContact) return;
+    await store.linkContactToProject(pickContact);
+    pickContact = "";
+    linking = false;
+  }
+
   const statusLabel: Record<ProjectStatus, string> = {
     planned: "Planned", in_progress: "In Progress", ongoing: "Ongoing", done: "Done",
   };
@@ -88,14 +105,36 @@
       <div class="r-card">
         <div class="r-label">Contact / CRM</div>
         {#if store.projectContacts.length}
-          {@const c = store.projectContacts[0]}
-          <div class="contact">
-            <span class="avatar">{(c.name.trim()[0] || "?").toUpperCase()}</span>
-            <span class="c-main"><span class="c-name">{c.name.trim() || "Unnamed"}</span><span class="c-role">Linked contact</span></span>
-          </div>
-          <button class="crm-btn" onclick={() => store.openContact(c.id, "project")}>Open in CRM</button>
+          <ul class="people">
+            {#each store.projectContacts as c (c.id)}
+              <li class="person">
+                <span class="avatar">{(c.name.trim()[0] || "?").toUpperCase()}</span>
+                <button class="c-main" onclick={() => store.openContact(c.id, "project")}>
+                  <span class="c-name">{c.name.trim() || "Unnamed"}</span>
+                </button>
+                <button class="unlink" title="Unlink" onclick={() => store.unlinkContactFromProject(c.id)}>×</button>
+              </li>
+            {/each}
+          </ul>
         {:else}
-          <p class="muted small">No contact linked. Link one from a contact's page.</p>
+          <p class="muted small">No contact linked yet.</p>
+        {/if}
+
+        {#if linking}
+          <div class="link-row">
+            <select bind:value={pickContact}>
+              <option value="">choose contact…</option>
+              {#each availableContacts as c (c.id)}
+                <option value={c.id}>{c.name || "Unnamed"}</option>
+              {/each}
+            </select>
+            <button class="link-go" disabled={!pickContact} onclick={doLink}>Link</button>
+          </div>
+          {#if availableContacts.length === 0}
+            <p class="muted small">No more contacts. Create one in Contacts.</p>
+          {/if}
+        {:else}
+          <button class="crm-btn" onclick={startLink}>+ Link contact</button>
         {/if}
       </div>
 
@@ -197,9 +236,16 @@
 
   .r-card { background: var(--bg-inset); border: 1px solid var(--border); border-radius: 10px; padding: 14px; }
   .r-label { font-size: 10px; letter-spacing: 0.8px; text-transform: uppercase; color: var(--fg-faint); font-weight: 600; margin-bottom: 10px; }
-  .contact { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
-  .avatar { width: 30px; height: 30px; border-radius: 50%; background: var(--bg-elev); border: 1px solid var(--border); display: flex; align-items: center; justify-content: center; color: var(--accent); font-weight: 700; font-size: 12px; }
-  .c-main { display: flex; flex-direction: column; } .c-name { color: var(--fg); font-size: 13px; font-weight: 600; } .c-role { color: var(--fg-faint); font-size: 11px; }
+  .people { list-style: none; margin: 0 0 10px; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+  .person { display: flex; align-items: center; gap: 10px; }
+  .avatar { width: 30px; height: 30px; flex: 0 0 auto; border-radius: 50%; background: var(--bg-elev); border: 1px solid var(--border); display: flex; align-items: center; justify-content: center; color: var(--accent); font-weight: 700; font-size: 12px; }
+  .c-main { flex: 1; min-width: 0; text-align: left; }
+  .c-name { color: var(--fg); font-size: 13px; font-weight: 600; } .c-main:hover .c-name { color: var(--accent); }
+  .unlink { color: var(--fg-faint); font-size: 15px; width: 20px; flex: 0 0 auto; } .unlink:hover { color: var(--danger); }
+  .link-row { display: flex; gap: 6px; margin-top: 4px; }
+  .link-row select { flex: 1; min-width: 0; background: var(--bg); color: var(--fg-dim); border: 1px solid var(--border); border-radius: 7px; padding: 6px; font-size: 12px; outline: none; }
+  .link-go { font-size: 12px; color: var(--accent); border: 1px solid color-mix(in srgb, var(--accent) 40%, transparent); border-radius: 7px; padding: 6px 12px; flex: 0 0 auto; }
+  .link-go:disabled { color: var(--fg-faint); border-color: var(--border); cursor: default; }
   .crm-btn { width: 100%; font-size: 12px; color: var(--fg); background: var(--bg-elev); border: 1px solid var(--border); border-radius: 7px; padding: 7px; } .crm-btn:hover { border-color: var(--fg-faint); }
 
   .d-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 7px 0; border-bottom: 1px solid var(--border-soft); }

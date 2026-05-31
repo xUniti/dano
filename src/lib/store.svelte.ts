@@ -286,6 +286,14 @@ class DanoStore {
       onConfirm: () => this.deleteArea(id),
     });
   }
+  confirmArchiveArea(id: string, name: string) {
+    this.requestConfirm({
+      title: "Archive area?",
+      message: `“${name || "Untitled"}” will be moved to the Archive. You can restore it later.`,
+      confirmLabel: "Archive area",
+      onConfirm: () => this.archiveArea(id),
+    });
+  }
   confirmDeleteResource(name: string) {
     this.requestConfirm({
       title: "Delete note?",
@@ -381,6 +389,32 @@ class DanoStore {
     const total = this.tasks.length;
     const done = this.tasks.filter((t) => t.status === "done").length;
     return { done, total };
+  }
+
+  // Link / unlink a contact to the currently open project (from ProjectView).
+  async linkContactToProject(contactId: string) {
+    const pid = this.activeProjectId;
+    if (!pid || !contactId) return;
+    try {
+      await db.addContactProject(contactId, pid);
+      this.projectContacts = await db.listProjectContacts(pid);
+    } catch (e) { this.#fail(e); }
+  }
+  async unlinkContactFromProject(contactId: string) {
+    const pid = this.activeProjectId;
+    if (!pid) return;
+    try {
+      const links = await db.listContactProjects(contactId);
+      const link = links.find((l) => l.project_id === pid);
+      if (link) await db.removeContactProject(link.link_id);
+      this.projectContacts = await db.listProjectContacts(pid);
+    } catch (e) { this.#fail(e); }
+  }
+  // Ensure pickContacts is loaded (for the link dropdown).
+  async ensureContactsLoaded() {
+    if (this.pickContacts.length === 0) {
+      try { this.pickContacts = await db.listAllContacts(); } catch (e) { this.#fail(e); }
+    }
   }
 
   async openResources() {

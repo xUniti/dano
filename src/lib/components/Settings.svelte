@@ -10,6 +10,15 @@
   const fontChoices: FontChoice[] = ["sans", "serif", "mono", "rounded"];
 
   const shortcuts = [
+    { keys: "n", desc: "New note" },
+    { keys: "/", desc: "Search" },
+    { keys: "g  d", desc: "Go to Dashboard" },
+    { keys: "g  p", desc: "Go to Projects" },
+    { keys: "g  a", desc: "Go to Areas" },
+    { keys: "g  r", desc: "Go to Resources" },
+    { keys: "g  c", desc: "Go to Contacts" },
+    { keys: "g  k", desc: "Go to Calendar" },
+    { keys: "g  s", desc: "Go to Settings" },
     { keys: "Ctrl  +", desc: "Zoom in" },
     { keys: "Ctrl  −", desc: "Zoom out" },
     { keys: "Ctrl  0", desc: "Reset zoom" },
