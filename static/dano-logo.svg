@@ -1,0 +1,33 @@
+<svg width="240" height="240" viewBox="0 0 240 240" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="DANO logo">
+  <!-- DANO — Framed D mark. Terminal-inspired: dark inset panel, mint accent
+       corner frame, monospace D. Colors match the app theme. -->
+  <rect width="240" height="240" rx="32" fill="#0d0f12"/>
+
+  <!-- Inner rounded frame -->
+  <rect x="62" y="62" width="116" height="116" rx="22" fill="#0a0c0f" stroke="#232830" stroke-width="2"/>
+
+  <!-- Accent corner brackets -->
+  <g stroke="#6ee7a8" stroke-width="6" stroke-linecap="round">
+    <!-- top-left -->
+    <path d="M62 84 V72 Q62 62 72 62 H84"/>
+    <!-- top-right -->
+    <path d="M178 84 V72 Q178 62 168 62 H156"/>
+    <!-- bottom-left -->
+    <path d="M62 156 V168 Q62 178 72 178 H84"/>
+    <!-- bottom-right -->
+    <path d="M178 156 V168 Q178 178 168 178 H156"/>
+  </g>
+
+  <!-- Accent nodes at the corners -->
+  <g fill="#6ee7a8">
+    <rect x="56" y="56" width="12" height="12" rx="3"/>
+    <rect x="172" y="56" width="12" height="12" rx="3"/>
+    <rect x="56" y="172" width="12" height="12" rx="3"/>
+    <rect x="172" y="172" width="12" height="12" rx="3"/>
+  </g>
+
+  <!-- Monospace D -->
+  <text x="120" y="121" text-anchor="middle" dominant-baseline="central"
+        font-family="'JetBrains Mono','SFMono-Regular','SF Mono','Cascadia Code','Fira Code',ui-monospace,Menlo,Consolas,monospace"
+        font-size="78" font-weight="700" fill="#d6dae0">D</text>
+</svg>

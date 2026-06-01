@@ -1,5 +1,7 @@
 <div align="center">
 
+<img src="https://raw.githubusercontent.com/xUniti/dano/main/static/dano-logo.svg" alt="DANO logo" width="120" height="120" />
+
 # DANO
 
 ### A local-first PARA workspace — notes, tasks, projects, a light CRM, and a calendar, all on your own device.
