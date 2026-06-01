@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="https://raw.githubusercontent.com/xUniti/dano/main/static/dano-logo.svg" alt="DANO logo" width="120" height="120" />
+<img src="./static/dano-logo.svg" alt="DANO logo" width="120" height="120" />
 
 # DANO
 
