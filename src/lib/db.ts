@@ -401,6 +401,13 @@ export const peopleDates = {
 
 export const dailyHubs = {
   get: (date: string) => selectOne<DailyHub>("SELECT * FROM daily_hubs WHERE date = $1", [date]),
+  async listBetween(startKey: string, endKey: string): Promise<DailyHub[]> {
+    const conn = await db();
+    return conn.select<DailyHub[]>(
+      "SELECT * FROM daily_hubs WHERE date >= $1 AND date <= $2 ORDER BY date",
+      [startKey, endKey],
+    );
+  },
   /** Get today's hub, creating it if missing (the Daily Hub engine entry point). */
   async ensure(date: string): Promise<DailyHub> {
     const existing = await dailyHubs.get(date);
@@ -475,6 +482,70 @@ export async function exportData(): Promise<Record<string, unknown>> {
     tables[t] = await conn.select<unknown[]>(`SELECT * FROM ${t}`);
   }
   return { app: "DANO", schema: "v1", exported_at: now(), tables };
+}
+
+/* ------------------------------------------------------------- Archive */
+
+// Entities that support soft-delete (have an `archived` column).
+const ARCHIVABLE: { type: EntityType; table: string }[] = [
+  { type: "area", table: "areas" },
+  { type: "goal", table: "goals" },
+  { type: "project", table: "projects" },
+  { type: "task", table: "tasks" },
+  { type: "note", table: "notes" },
+  { type: "habit", table: "habits" },
+  { type: "event", table: "events" },
+  { type: "person", table: "people" },
+];
+
+function labelOf(type: EntityType, row: Record<string, unknown>): string {
+  if (type === "person") return `${row.first_name ?? ""} ${row.last_name ?? ""}`.trim() || "Unnamed";
+  return String(row.title ?? row.name ?? "Untitled");
+}
+
+async function setArchived(type: EntityType, id: string, archived: 0 | 1): Promise<void> {
+  const t = ARCHIVABLE.find((a) => a.type === type);
+  if (!t) return;
+  const conn = await db();
+  await conn.execute(`UPDATE ${t.table} SET archived = $1, updated_at = $2 WHERE id = $3`, [archived, now(), id]);
+}
+
+/** Soft-delete: move an entity to the Archive. */
+export const archiveEntity = (type: EntityType, id: string) => setArchived(type, id, 1);
+/** Bring an archived entity back. */
+export const restoreEntity = (type: EntityType, id: string) => setArchived(type, id, 0);
+
+/** Permanently delete an entity (with child cascade for areas & projects). */
+export async function purgeEntity(type: EntityType, id: string): Promise<void> {
+  const conn = await db();
+  if (type === "area") return areas.remove(id);
+  if (type === "project") {
+    await conn.execute("DELETE FROM tasks WHERE project_id = $1", [id]);
+    await conn.execute("DELETE FROM projects WHERE id = $1", [id]);
+    return;
+  }
+  const t = ARCHIVABLE.find((a) => a.type === type);
+  if (t) await conn.execute(`DELETE FROM ${t.table} WHERE id = $1`, [id]);
+}
+
+/** Everything currently archived, across all entity types. */
+export async function listArchived(): Promise<{ type: EntityType; id: string; label: string; updated_at: number }[]> {
+  const conn = await db();
+  const out: { type: EntityType; id: string; label: string; updated_at: number }[] = [];
+  for (const { type, table } of ARCHIVABLE) {
+    const rows = await conn.select<Record<string, unknown>[]>(`SELECT * FROM ${table} WHERE archived = 1 ORDER BY updated_at DESC`);
+    for (const r of rows) out.push({ type, id: String(r.id), label: labelOf(type, r), updated_at: Number(r.updated_at) });
+  }
+  return out.sort((a, b) => b.updated_at - a.updated_at);
+}
+
+/* --------------------------------------------------------------- Metrics */
+
+/** All links (created_at only) — for the "connected objects" count + per-day trend. */
+export async function linkTimestamps(): Promise<number[]> {
+  const conn = await db();
+  const rows = await conn.select<{ created_at: number }[]>("SELECT created_at FROM links");
+  return rows.map((r) => r.created_at);
 }
 
 /* ----------------------------------------------------------- Graph labels */

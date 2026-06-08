@@ -1,6 +1,6 @@
 <script lang="ts">
   import { tick } from "svelte";
-  import { notes as noteDb, people as peopleDb, tasks as taskDb, projects as projectDb } from "$lib/db";
+  import { notes as noteDb, people as peopleDb, tasks as taskDb, projects as projectDb, archiveEntity } from "$lib/db";
   import { link as gLink, neighbors } from "$lib/graph";
   import { renderMarkdown } from "$lib/markdown";
   import type { Note, Person, Task, EntityType } from "$lib/types";
@@ -20,6 +20,8 @@
   let people = $state<Person[]>([]);
   let tasks = $state<Task[]>([]);
   let backlinks = $state<{ type: EntityType; id: string; label: string; href?: string }[]>([]);
+
+  let titleEl = $state<HTMLInputElement | null>(null);
 
   // mention autocomplete
   let textarea = $state<HTMLTextAreaElement | null>(null);
@@ -48,6 +50,12 @@
     content = n.content;
     tags = n.tags;
     await refreshBacklinks();
+    // Fresh note → jump straight into editing the title.
+    if (n.title === "Untitled") {
+      await tick();
+      titleEl?.focus();
+      titleEl?.select();
+    }
   }
 
   async function loadRefs() {
@@ -133,8 +141,8 @@
   }
 
   async function del() {
-    if (!confirm("Delete this note?")) return;
-    await noteDb.remove(noteId);
+    if (!confirm("Archive this note? You can restore it later from Archive.")) return;
+    await archiveEntity("note", noteId);
     onChange();
   }
 </script>
@@ -144,6 +152,7 @@
     <!-- Title + toolbar -->
     <div class="flex items-center gap-2 border-b border-white/10 px-5 py-3">
       <input
+        bind:this={titleEl}
         bind:value={title}
         onblur={saveTitle}
         placeholder="Untitled"
@@ -156,7 +165,7 @@
       >
         {preview ? "Edit" : "Preview"}
       </button>
-      <button type="button" onclick={del} class="rounded-md px-2 py-1 text-xs text-white/40 hover:bg-red-500/15 hover:text-red-300">Delete</button>
+      <button type="button" onclick={del} class="rounded-md px-2 py-1 text-xs text-white/40 hover:bg-amber-500/15 hover:text-amber-300">Archive</button>
     </div>
 
     <!-- Tags -->

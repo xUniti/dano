@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { tasks as taskDb } from "$lib/db";
+  import { tasks as taskDb, archiveEntity } from "$lib/db";
   import { dueLabel, isOverdue, msToDateInput, dateInputToMs } from "$lib/date";
   import type { Task, TaskPriority } from "$lib/types";
 
@@ -48,7 +48,7 @@
     }
   }
   async function remove() {
-    await taskDb.remove(task.id);
+    await archiveEntity("task", task.id);
     reload();
   }
 </script>

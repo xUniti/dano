@@ -93,7 +93,7 @@
   <div class="p-6 text-sm text-white/40">Loading…</div>
 {:else}
   <!-- Day header -->
-  <div class="flex items-center gap-3 border-b border-white/10 py-4 pl-6 pr-16">
+  <div class="flex items-center gap-3 border-b border-white/10 px-6 py-4">
     <button type="button" onclick={() => shiftDay(-1)} class="rounded-md px-2 py-1 text-white/50 hover:bg-white/5 hover:text-white">←</button>
     <div>
       <h1 class="text-lg font-semibold tracking-tight">{heading}</h1>

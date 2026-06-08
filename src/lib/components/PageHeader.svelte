@@ -7,7 +7,7 @@
   let { title, subtitle, children }: Props = $props();
 </script>
 
-<div class="flex items-end justify-between gap-4 border-b border-white/10 py-4 pl-6 pr-16">
+<div class="flex items-end justify-between gap-4 border-b border-white/10 px-6 py-4">
   <div>
     <h1 class="text-lg font-semibold tracking-tight">{title}</h1>
     {#if subtitle}

@@ -8,14 +8,20 @@
 
   const nav: { href: string; label: string; icon: IconName }[] = [
     { href: "/", label: "Dashboard", icon: "dashboard" },
-    { href: "/daily", label: "Today", icon: "today" },
     { href: "/tasks", label: "Tasks", icon: "tasks" },
-    { href: "/areas", label: "Areas", icon: "areas" },
-    { href: "/projects", label: "Projects", icon: "projects" },
+    { href: "/daily", label: "Daily Hub", icon: "today" },
     { href: "/notes", label: "Notes", icon: "notes" },
     { href: "/calendar", label: "Calendar", icon: "calendar" },
+    { href: "/projects", label: "Projects", icon: "projects" },
+    { href: "/areas", label: "Areas", icon: "areas" },
     { href: "/habits", label: "Habits", icon: "habits" },
     { href: "/people", label: "People", icon: "people" },
+  ];
+
+  const menu: { href: string; label: string; icon: IconName }[] = [
+    { href: "/settings", label: "Settings", icon: "user" },
+    { href: "/archive", label: "Archive", icon: "archive" },
+    { href: "/settings", label: "About DANO", icon: "info" },
   ];
 
   function isActive(href: string, path: string): boolean {
@@ -38,19 +44,6 @@
     class="pointer-events-none absolute inset-x-0 top-[-20%] mx-auto h-[40rem] w-[40rem] rounded-full bg-sky-500/10 blur-[120px]"
   ></div>
 
-  <!-- Profile / Settings (top-right) -->
-  <div class="absolute right-4 top-3.5 z-40">
-    <a
-      href="/settings"
-      title="Settings"
-      aria-label="Settings"
-      class="group flex h-9 w-9 items-center justify-center rounded-full border bg-white/[0.06] backdrop-blur-xl transition-all duration-200 hover:scale-105 hover:bg-white/10
-        {$page.url.pathname === '/settings' ? 'border-sky-400/60 text-white' : 'border-white/15 text-white/70 hover:text-white'}"
-    >
-      <Icon name="user" size={18} />
-    </a>
-  </div>
-
   <!-- Content -->
   <main class="relative z-10 h-full overflow-y-auto pb-28">
     {@render children()}
@@ -61,14 +54,35 @@
     <nav
       class="flex items-end gap-1 rounded-2xl border border-white/10 bg-white/[0.06] px-2 py-1.5 shadow-2xl shadow-black/40 backdrop-blur-2xl"
     >
-      <!-- Brand tile -->
-      <a href="/" class="group relative flex flex-col items-center" aria-label="DANO home">
-        <span
-          class="flex h-11 w-11 items-center justify-center rounded-xl border border-white/15 bg-gradient-to-br from-sky-500/30 to-indigo-500/20 text-base font-semibold text-white transition-all duration-200 ease-out group-hover:-translate-y-1.5 group-hover:scale-110"
-          >D</span
+      <!-- Brand tile = account/system menu (opens on hover) -->
+      <div class="group relative flex flex-col items-center">
+        <!-- hover menu (pb-3 bridges the gap so hover doesn't drop) -->
+        <div class="invisible absolute bottom-full left-0 pb-3 opacity-0 transition-all duration-150 group-hover:visible group-hover:opacity-100">
+          <div class="w-44 overflow-hidden rounded-xl border border-white/15 bg-[#15171c]/95 shadow-2xl backdrop-blur-2xl">
+            <div class="border-b border-white/10 px-3 py-2">
+              <div class="text-sm font-semibold text-white">DANO OS</div>
+              <div class="text-[10px] text-white/40">Life Operating System</div>
+            </div>
+            {#each menu as m (m.label)}
+              <a
+                href={m.href}
+                class="flex items-center gap-2.5 px-3 py-2 text-sm text-white/75 hover:bg-white/10 hover:text-white"
+              >
+                <span class="text-white/45"><Icon name={m.icon} size={16} /></span>
+                {m.label}
+              </a>
+            {/each}
+          </div>
+        </div>
+        <a
+          href="/"
+          aria-label="DANO home"
+          class="flex h-11 w-11 items-center justify-center overflow-hidden rounded-xl border border-white/15 transition-all duration-200 ease-out group-hover:-translate-y-1.5 group-hover:scale-110"
         >
+          <img src="/dano-logo.svg" alt="DANO" class="h-full w-full" />
+        </a>
         <span class="mt-0.5 h-1 w-1 rounded-full bg-transparent"></span>
-      </a>
+      </div>
       <span class="mx-1 mb-3 h-7 w-px self-center bg-white/10"></span>
 
       {#each nav as item (item.href)}

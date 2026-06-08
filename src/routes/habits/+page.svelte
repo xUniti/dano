@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import PageHeader from "$lib/components/PageHeader.svelte";
-  import { habits as habitDb, habitCompletions } from "$lib/db";
+  import { habits as habitDb, habitCompletions, archiveEntity } from "$lib/db";
   import { isTauri } from "$lib/platform";
   import { todayKey } from "$lib/date";
   import { streak, completionRate, recentDays } from "$lib/habits";
@@ -75,8 +75,8 @@
     await load();
   }
   async function remove(h: Habit) {
-    if (!confirm(`Delete habit “${h.name}”?`)) return;
-    await habitDb.remove(h.id);
+    if (!confirm(`Archive habit “${h.name}”? You can restore it later from Archive.`)) return;
+    await archiveEntity("habit", h.id);
     await load();
   }
 </script>
@@ -150,7 +150,7 @@
                 {/each}
               </div>
 
-              <button type="button" onclick={() => remove(h)} class="shrink-0 rounded px-2 py-1 text-[11px] text-white/35 hover:text-red-300">Delete</button>
+              <button type="button" onclick={() => remove(h)} class="shrink-0 rounded px-2 py-1 text-[11px] text-white/35 hover:text-amber-300">Archive</button>
             </div>
 
             <!-- 14-day heatmap -->

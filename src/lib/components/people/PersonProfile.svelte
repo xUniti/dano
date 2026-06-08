@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { people as peopleDb, peopleDates as datesDb, entityLabel } from "$lib/db";
+  import { people as peopleDb, peopleDates as datesDb, entityLabel, archiveEntity } from "$lib/db";
   import { linksFor } from "$lib/graph";
   import { fullName, initials, strength, daysSinceInteraction, daysUntilBirthday, isFollowUpDue } from "$lib/people";
   import { dueLabel } from "$lib/date";
@@ -79,8 +79,8 @@
 
   async function del() {
     if (!person) return;
-    if (!confirm(`Delete ${fullName(person)}?`)) return;
-    await peopleDb.remove(person.id);
+    if (!confirm(`Archive ${fullName(person)}? You can restore them later from Archive.`)) return;
+    await archiveEntity("person", person.id);
     onChange();
   }
 
@@ -123,7 +123,7 @@
           </div>
         {/if}
       </div>
-      <button type="button" onclick={del} class="self-start rounded-md px-2 py-1 text-xs text-white/40 hover:bg-red-500/15 hover:text-red-300">Delete</button>
+      <button type="button" onclick={del} class="self-start rounded-md px-2 py-1 text-xs text-white/40 hover:bg-amber-500/15 hover:text-amber-300">Archive</button>
     </div>
 
     <div class="grid gap-6 p-6 lg:grid-cols-2">
@@ -131,11 +131,11 @@
       <div class="space-y-4">
         <div class="grid grid-cols-2 gap-3">
           <label class="block"><span class="mb-1 block text-xs text-white/45">Email</span>
-            <input value={person.email} onblur={(e) => save({ email: (e.currentTarget as HTMLInputElement).value })}
-              class="w-full rounded-lg border border-white/10 bg-white/[0.03] px-2.5 py-1.5 text-sm outline-none focus:border-white/30" /></label>
+            <input type="email" inputmode="email" autocomplete="email" placeholder="name@example.com" value={person.email} onblur={(e) => save({ email: (e.currentTarget as HTMLInputElement).value })}
+              class="w-full rounded-lg border border-white/10 bg-white/[0.03] px-2.5 py-1.5 text-sm outline-none focus:border-white/30 placeholder:text-white/25 invalid:border-red-400/40" /></label>
           <label class="block"><span class="mb-1 block text-xs text-white/45">Phone</span>
-            <input value={person.phone} onblur={(e) => save({ phone: (e.currentTarget as HTMLInputElement).value })}
-              class="w-full rounded-lg border border-white/10 bg-white/[0.03] px-2.5 py-1.5 text-sm outline-none focus:border-white/30" /></label>
+            <input type="tel" inputmode="tel" autocomplete="tel" placeholder="+1 555 000 0000" value={person.phone} onblur={(e) => save({ phone: (e.currentTarget as HTMLInputElement).value })}
+              class="w-full rounded-lg border border-white/10 bg-white/[0.03] px-2.5 py-1.5 text-sm outline-none focus:border-white/30 placeholder:text-white/25" /></label>
         </div>
         <div class="grid grid-cols-2 gap-3">
           <label class="block"><span class="mb-1 block text-xs text-white/45">Birthday</span>

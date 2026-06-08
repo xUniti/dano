@@ -11,7 +11,9 @@
     | "areas"
     | "people"
     | "search"
-    | "user";
+    | "user"
+    | "archive"
+    | "info";
 
   const PATHS: Record<IconName, string> = {
     dashboard:
@@ -33,6 +35,8 @@
     areas: '<path d="m12 2 9 5-9 5-9-5 9-5Z"/><path d="m3 12 9 5 9-5"/><path d="m3 17 9 5 9-5"/>',
     search: '<circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/>',
     user: '<circle cx="12" cy="8" r="4"/><path d="M4 20a8 8 0 0 1 16 0"/>',
+    archive: '<rect width="20" height="5" x="2" y="3" rx="1"/><path d="M4 8v11a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8"/><path d="M10 12h4"/>',
+    info: '<circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/>',
   };
 
   export function iconPath(name: IconName): string {

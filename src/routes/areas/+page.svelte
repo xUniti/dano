@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import PageHeader from "$lib/components/PageHeader.svelte";
-  import { areas as areaDb, projects as projectDb } from "$lib/db";
+  import { areas as areaDb, projects as projectDb, archiveEntity } from "$lib/db";
   import { isTauri } from "$lib/platform";
   import type { Area } from "$lib/types";
 
@@ -57,9 +57,8 @@
     }
   }
   async function remove(area: Area) {
-    const n = counts[area.id] ?? 0;
-    if (!confirm(`Delete area “${area.name}”${n ? ` and its ${n} project(s)` : ""}?`)) return;
-    await areaDb.remove(area.id);
+    if (!confirm(`Archive area “${area.name}”? You can restore it later from Archive.`)) return;
+    await archiveEntity("area", area.id);
     await load();
   }
 
@@ -134,13 +133,13 @@
             </div>
 
             <div class="mt-3 flex items-center gap-3">
-              <a href="/projects" class="text-[11px] text-sky-400 hover:underline">View projects →</a>
+              <a href="/areas/{area.id}" class="text-[11px] text-sky-400 hover:underline">Open area →</a>
               <button
                 type="button"
                 onclick={() => remove(area)}
-                class="ml-auto text-[11px] text-white/35 hover:text-red-300"
+                class="ml-auto text-[11px] text-white/35 hover:text-amber-300"
               >
-                Delete
+                Archive
               </button>
             </div>
           </div>
