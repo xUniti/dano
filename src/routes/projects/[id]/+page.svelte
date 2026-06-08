@@ -8,8 +8,9 @@
   import {
     projects as projectDb, tasks as taskDb, areas as areaDb,
     notes as noteDb, people as peopleDb, goals as goalDb,
-    archiveEntity, entityLabel,
+    archiveEntity, restoreEntity, entityLabel,
   } from "$lib/db";
+  import { toasts } from "$lib/stores/toast.svelte";
   import { link as gLink, unlink as gUnlink, neighbors, linksFor } from "$lib/graph";
   import { fullName } from "$lib/people";
   import { isTauri } from "$lib/platform";
@@ -116,9 +117,12 @@
   }
   async function removeProject() {
     if (!project) return;
-    if (!confirm(`Archive project “${project.name}”? You can restore it later from Archive.`)) return;
-    await archiveEntity("project", project.id);
+    const pid = project.id;
+    await archiveEntity("project", pid);
     goto("/projects");
+    toasts.show("Project archived", {
+      action: { label: "Undo", run: async () => { await restoreEntity("project", pid); goto(`/projects/${pid}`); } },
+    });
   }
   function fmtDate(ms: number): string {
     return new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric", year: "numeric" }).format(ms);
@@ -128,7 +132,7 @@
 </script>
 
 <PageHeader title={project?.name ?? "Project"} subtitle={area ? area.name : ""}>
-  <a href="/projects" class="rounded-lg border border-white/10 px-3 py-1.5 text-xs text-white/70 hover:bg-white/5 hover:text-white">← Projects</a>
+  <a href="/projects" class="rounded-lg border border-fg/10 px-3 py-1.5 text-xs text-fg/70 hover:bg-fg/5 hover:text-fg">← Projects</a>
 </PageHeader>
 
 {#if !desktop}
@@ -136,44 +140,44 @@
     Launch the desktop app with <code class="rounded bg-black/30 px-1">npm run tauri dev</code> to view this project.
   </div>
 {:else if loading}
-  <div class="p-6 text-sm text-white/40">Loading…</div>
+  <div class="p-6 text-sm text-fg/40">Loading…</div>
 {:else if notFound || !project}
-  <div class="p-6 text-sm text-white/40">Project not found. <a class="text-sky-400" href="/projects">Back to projects</a></div>
+  <div class="p-6 text-sm text-fg/40">Project not found. <a class="text-accent" href="/projects">Back to projects</a></div>
 {:else}
   <!-- Tabs -->
-  <div class="flex gap-1 border-b border-white/10 px-6">
+  <div class="flex gap-1 border-b border-fg/10 px-6">
     {#each tabs as [t, label] (t)}
       <button type="button" onclick={() => (tab = t)}
-        class="-mb-px border-b-2 px-3 py-2.5 text-sm transition-colors {tab === t ? 'border-sky-400 text-white' : 'border-transparent text-white/50 hover:text-white/80'}">
+        class="-mb-px border-b-2 px-3 py-2.5 text-sm transition-colors {tab === t ? 'border-accent text-fg' : 'border-transparent text-fg/50 hover:text-fg/80'}">
         {label}
-        {#if t === "tasks" && tasks.length}<span class="ml-1 text-[10px] text-white/30">{tasks.length}</span>{/if}
-        {#if t === "notes" && linkedNotes.length}<span class="ml-1 text-[10px] text-white/30">{linkedNotes.length}</span>{/if}
-        {#if t === "people" && linkedPeople.length}<span class="ml-1 text-[10px] text-white/30">{linkedPeople.length}</span>{/if}
+        {#if t === "tasks" && tasks.length}<span class="ml-1 text-[10px] text-fg/30">{tasks.length}</span>{/if}
+        {#if t === "notes" && linkedNotes.length}<span class="ml-1 text-[10px] text-fg/30">{linkedNotes.length}</span>{/if}
+        {#if t === "people" && linkedPeople.length}<span class="ml-1 text-[10px] text-fg/30">{linkedPeople.length}</span>{/if}
       </button>
     {/each}
   </div>
 
   {#if tab === "overview"}
     <div class="max-w-2xl space-y-5 p-6">
-      <label class="block"><span class="mb-1 block text-xs text-white/45">Name</span>
+      <label class="block"><span class="mb-1 block text-xs text-fg/45">Name</span>
         <input value={project.name} onchange={(e) => save({ name: (e.currentTarget as HTMLInputElement).value })}
-          class="w-full rounded-lg border border-white/10 bg-white/[0.03] px-3 py-2 text-sm outline-none focus:border-white/30" /></label>
-      <label class="block"><span class="mb-1 block text-xs text-white/45">Description</span>
+          class="w-full rounded-lg border border-fg/10 bg-fg/[0.03] px-3 py-2 text-sm outline-none focus:border-fg/30" /></label>
+      <label class="block"><span class="mb-1 block text-xs text-fg/45">Description</span>
         <textarea value={project.description} onchange={(e) => save({ description: (e.currentTarget as HTMLTextAreaElement).value })} rows="3"
-          class="w-full resize-y rounded-lg border border-white/10 bg-white/[0.03] px-3 py-2 text-sm outline-none focus:border-white/30"></textarea></label>
+          class="w-full resize-y rounded-lg border border-fg/10 bg-fg/[0.03] px-3 py-2 text-sm outline-none focus:border-fg/30"></textarea></label>
       <div class="flex flex-wrap gap-5">
-        <label class="block"><span class="mb-1 block text-xs text-white/45">Status</span>
+        <label class="block"><span class="mb-1 block text-xs text-fg/45">Status</span>
           <select value={project.status} onchange={(e) => save({ status: (e.currentTarget as HTMLSelectElement).value as ProjectStatus })}
-            class="rounded-lg border border-white/10 bg-white/[0.03] px-3 py-2 text-sm capitalize outline-none focus:border-white/30">
+            class="rounded-lg border border-fg/10 bg-fg/[0.03] px-3 py-2 text-sm capitalize outline-none focus:border-fg/30">
             {#each statuses as s (s)}<option value={s}>{s}</option>{/each}
           </select></label>
-        <label class="block"><span class="mb-1 block text-xs text-white/45">Due date</span>
+        <label class="block"><span class="mb-1 block text-xs text-fg/45">Due date</span>
           <input type="date" value={msToDateInput(project.due_at)} onchange={(e) => save({ due_at: dateInputToMs((e.currentTarget as HTMLInputElement).value) })}
-            class="rounded-lg border border-white/10 bg-white/[0.03] px-3 py-2 text-sm outline-none [color-scheme:dark] focus:border-white/30" /></label>
+            class="rounded-lg border border-fg/10 bg-fg/[0.03] px-3 py-2 text-sm outline-none [color-scheme:dark] focus:border-fg/30" /></label>
       </div>
       <div>
-        <div class="mb-1 flex items-center justify-between"><span class="text-xs text-white/45">Progress (auto from tasks)</span><span class="text-xs tabular-nums text-white/60">{project.progress}%</span></div>
-        <div class="h-2 overflow-hidden rounded-full bg-white/10"><div class="h-full rounded-full bg-sky-400/80 transition-all" style="width: {project.progress}%"></div></div>
+        <div class="mb-1 flex items-center justify-between"><span class="text-xs text-fg/45">Progress (auto from tasks)</span><span class="text-xs tabular-nums text-fg/60">{project.progress}%</span></div>
+        <div class="h-2 overflow-hidden rounded-full bg-fg/10"><div class="h-full rounded-full bg-accent/80 transition-all" style="width: {project.progress}%"></div></div>
       </div>
       <div class="flex items-center gap-3 pt-2">
         <span class="rounded px-2 py-1 text-xs capitalize {statusPill[project.status]}">{project.status}</span>
@@ -184,61 +188,61 @@
   {:else if tab === "tasks"}
     <div class="p-6">
       <input bind:value={newTask} onkeydown={(e) => e.key === "Enter" && addTask()} placeholder="Add a task to this project and press Enter…"
-        class="mb-4 w-full rounded-lg border border-white/10 bg-white/[0.03] px-3 py-2 text-sm outline-none placeholder:text-white/30 focus:border-white/25" />
-      {#if tasks.length === 0}<p class="text-sm text-white/35">No tasks yet.</p>
+        class="mb-4 w-full rounded-lg border border-fg/10 bg-fg/[0.03] px-3 py-2 text-sm outline-none placeholder:text-fg/30 focus:border-fg/25" />
+      {#if tasks.length === 0}<p class="text-sm text-fg/35">No tasks yet.</p>
       {:else}<div class="flex flex-col gap-1.5">{#each tasks as task (task.id)}<TaskRow {task} reload={load} />{/each}</div>{/if}
     </div>
   {:else if tab === "notes"}
     <div class="p-6">
-      <button type="button" onclick={newLinkedNote} class="mb-4 rounded-lg border border-white/10 px-3 py-1.5 text-xs text-white/70 hover:bg-white/5 hover:text-white">+ New linked note</button>
-      {#if linkedNotes.length === 0}<p class="text-sm text-white/35">No notes linked. Create one, or mention this project from a note.</p>
+      <button type="button" onclick={newLinkedNote} class="mb-4 rounded-lg border border-fg/10 px-3 py-1.5 text-xs text-fg/70 hover:bg-fg/5 hover:text-fg">+ New linked note</button>
+      {#if linkedNotes.length === 0}<p class="text-sm text-fg/35">No notes linked. Create one, or mention this project from a note.</p>
       {:else}<div class="space-y-1.5">{#each linkedNotes as n (n.id)}
-        <div class="flex items-center gap-2 rounded-lg border border-white/5 bg-white/[0.02] px-3 py-2">
-          <a href="/notes?id={n.id}" class="flex-1 truncate text-sm text-white/85 hover:text-white">{n.label}</a>
-          <button type="button" onclick={() => unlinkRef("note", n.id)} class="text-[11px] text-white/30 hover:text-red-300">unlink</button>
+        <div class="flex items-center gap-2 rounded-lg border border-fg/5 bg-fg/[0.02] px-3 py-2">
+          <a href="/notes?id={n.id}" class="flex-1 truncate text-sm text-fg/85 hover:text-fg">{n.label}</a>
+          <button type="button" onclick={() => unlinkRef("note", n.id)} class="text-[11px] text-fg/30 hover:text-red-300">unlink</button>
         </div>{/each}</div>{/if}
     </div>
   {:else if tab === "people"}
     <div class="p-6">
       {#if unlinkedPeople.length}
-        <select onchange={linkPerson} class="mb-4 rounded-lg border border-white/10 bg-white/[0.03] px-3 py-2 text-sm outline-none focus:border-white/30">
+        <select onchange={linkPerson} class="mb-4 rounded-lg border border-fg/10 bg-fg/[0.03] px-3 py-2 text-sm outline-none focus:border-fg/30">
           <option value="">+ Link a person…</option>
           {#each unlinkedPeople as p (p.id)}<option value={p.id}>{fullName(p)}</option>{/each}
         </select>
       {/if}
-      {#if linkedPeople.length === 0}<p class="text-sm text-white/35">No people linked yet.</p>
+      {#if linkedPeople.length === 0}<p class="text-sm text-fg/35">No people linked yet.</p>
       {:else}<div class="space-y-1.5">{#each linkedPeople as p (p.id)}
-        <div class="flex items-center gap-2 rounded-lg border border-white/5 bg-white/[0.02] px-3 py-2">
-          <a href="/people?id={p.id}" class="flex-1 truncate text-sm text-white/85 hover:text-white">{p.label}</a>
-          <button type="button" onclick={() => unlinkRef("person", p.id)} class="text-[11px] text-white/30 hover:text-red-300">unlink</button>
+        <div class="flex items-center gap-2 rounded-lg border border-fg/5 bg-fg/[0.02] px-3 py-2">
+          <a href="/people?id={p.id}" class="flex-1 truncate text-sm text-fg/85 hover:text-fg">{p.label}</a>
+          <button type="button" onclick={() => unlinkRef("person", p.id)} class="text-[11px] text-fg/30 hover:text-red-300">unlink</button>
         </div>{/each}</div>{/if}
     </div>
   {:else if tab === "timeline"}
     <div class="p-6">
-      {#if timeline.length === 0}<p class="text-sm text-white/35">No activity yet. Linked notes, people, and tasks will appear here over time.</p>
-      {:else}<ol class="relative space-y-3 border-l border-white/10 pl-4">
+      {#if timeline.length === 0}<p class="text-sm text-fg/35">No activity yet. Linked notes, people, and tasks will appear here over time.</p>
+      {:else}<ol class="relative space-y-3 border-l border-fg/10 pl-4">
         {#each timeline as e (e.type + e.id + e.at)}
           <li class="relative">
-            <span class="absolute -left-[21px] top-1.5 h-2 w-2 rounded-full bg-sky-400/70"></span>
-            <div class="text-sm text-white/85"><span class="text-white/40">{e.relation.replace("_", " ")}</span>
-              {#if e.href}<a href={e.href} class="text-sky-300 hover:underline">{e.label}</a>{:else}<span class="text-white/40">{e.type}:</span> {e.label}{/if}</div>
-            <div class="text-[11px] text-white/35">{fmtDate(e.at)}</div>
+            <span class="absolute -left-[21px] top-1.5 h-2 w-2 rounded-full bg-accent/70"></span>
+            <div class="text-sm text-fg/85"><span class="text-fg/40">{e.relation.replace("_", " ")}</span>
+              {#if e.href}<a href={e.href} class="text-accent hover:underline">{e.label}</a>{:else}<span class="text-fg/40">{e.type}:</span> {e.label}{/if}</div>
+            <div class="text-[11px] text-fg/35">{fmtDate(e.at)}</div>
           </li>{/each}</ol>{/if}
     </div>
   {:else if tab === "goals"}
     <div class="max-w-lg space-y-4 p-6">
-      <label class="block"><span class="mb-1 block text-xs text-white/45">Linked goal</span>
+      <label class="block"><span class="mb-1 block text-xs text-fg/45">Linked goal</span>
         <select value={project.goal_id ?? ""} onchange={(e) => save({ goal_id: (e.currentTarget as HTMLSelectElement).value || null })}
-          class="w-full rounded-lg border border-white/10 bg-white/[0.03] px-3 py-2 text-sm outline-none focus:border-white/30">
+          class="w-full rounded-lg border border-fg/10 bg-fg/[0.03] px-3 py-2 text-sm outline-none focus:border-fg/30">
           <option value="">No goal</option>
           {#each allGoals as g (g.id)}<option value={g.id}>{g.title}</option>{/each}
         </select></label>
       <div class="flex gap-2">
         <input bind:value={newGoalTitle} onkeydown={(e) => e.key === "Enter" && createGoal()} placeholder="…or create a new goal"
-          class="flex-1 rounded-lg border border-white/10 bg-white/[0.03] px-3 py-2 text-sm outline-none placeholder:text-white/30 focus:border-white/25" />
-        <button type="button" onclick={createGoal} class="rounded-lg bg-indigo-500/80 px-3 py-2 text-sm font-medium text-white hover:bg-indigo-500">Add</button>
+          class="flex-1 rounded-lg border border-fg/10 bg-fg/[0.03] px-3 py-2 text-sm outline-none placeholder:text-fg/30 focus:border-fg/25" />
+        <button type="button" onclick={createGoal} class="rounded-lg bg-indigo-500/80 px-3 py-2 text-sm font-medium text-fg hover:bg-indigo-500">Add</button>
       </div>
-      {#if goal}<p class="text-sm text-white/60">This project contributes to <span class="text-indigo-300">🎯 {goal.title}</span>.</p>{/if}
+      {#if goal}<p class="text-sm text-fg/60">This project contributes to <span class="text-indigo-300">🎯 {goal.title}</span>.</p>{/if}
     </div>
   {/if}
 {/if}

@@ -59,13 +59,13 @@
 {:else}
   <div class="grid h-full grid-cols-[260px_1fr]">
     <!-- List -->
-    <aside class="flex min-h-0 flex-col border-r border-white/10">
+    <aside class="flex min-h-0 flex-col border-r border-fg/10">
       <div class="flex items-center gap-2 px-4 py-3">
         <h1 class="text-sm font-semibold tracking-tight">Notes</h1>
         <button
           type="button"
           onclick={newNote}
-          class="ml-auto rounded-md border border-white/10 px-2 py-1 text-xs text-white/70 hover:bg-white/5 hover:text-white"
+          class="ml-auto rounded-md border border-fg/10 px-2 py-1 text-xs text-fg/70 hover:bg-fg/5 hover:text-fg"
         >
           + New
         </button>
@@ -74,24 +74,24 @@
         <input
           bind:value={query}
           placeholder="Search notes…"
-          class="w-full rounded-md border border-white/10 bg-white/[0.03] px-2.5 py-1.5 text-xs outline-none placeholder:text-white/30 focus:border-white/25"
+          class="w-full rounded-md border border-fg/10 bg-fg/[0.03] px-2.5 py-1.5 text-xs outline-none placeholder:text-fg/30 focus:border-fg/25"
         />
       </div>
       <div class="min-h-0 flex-1 overflow-y-auto px-2 pb-4">
         {#if loading}
-          <p class="px-2 py-3 text-xs text-white/35">Loading…</p>
+          <p class="px-2 py-3 text-xs text-fg/35">Loading…</p>
         {:else if filtered.length === 0}
-          <p class="px-2 py-3 text-xs text-white/35">No notes yet.</p>
+          <p class="px-2 py-3 text-xs text-fg/35">No notes yet.</p>
         {:else}
           {#each filtered as n (n.id)}
             <button
               type="button"
               onclick={() => (selectedId = n.id)}
               class="mb-0.5 block w-full truncate rounded-md px-2.5 py-2 text-left text-sm transition-colors
-                {selectedId === n.id ? 'bg-white/10 text-white' : 'text-white/65 hover:bg-white/5'}"
+                {selectedId === n.id ? 'bg-fg/10 text-fg' : 'text-fg/65 hover:bg-fg/5'}"
             >
               {n.title || "Untitled"}
-              {#if n.tags}<span class="ml-1 text-[10px] text-white/30">{n.tags}</span>{/if}
+              {#if n.tags}<span class="ml-1 text-[10px] text-fg/30">{n.tags}</span>{/if}
             </button>
           {/each}
         {/if}
@@ -107,7 +107,7 @@
           <NoteEditor noteId={selectedId} onChange={load} />
         {/key}
       {:else}
-        <div class="flex h-full items-center justify-center text-sm text-white/30">
+        <div class="flex h-full items-center justify-center text-sm text-fg/30">
           Select a note, or create one.
         </div>
       {/if}

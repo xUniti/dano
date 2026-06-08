@@ -1,7 +1,8 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import PageHeader from "$lib/components/PageHeader.svelte";
-  import { areas as areaDb, projects as projectDb, archiveEntity } from "$lib/db";
+  import { areas as areaDb, projects as projectDb, archiveEntity, restoreEntity } from "$lib/db";
+  import { toasts } from "$lib/stores/toast.svelte";
   import { isTauri } from "$lib/platform";
   import type { Area } from "$lib/types";
 
@@ -57,9 +58,11 @@
     }
   }
   async function remove(area: Area) {
-    if (!confirm(`Archive area “${area.name}”? You can restore it later from Archive.`)) return;
     await archiveEntity("area", area.id);
     await load();
+    toasts.show("Area archived", {
+      action: { label: "Undo", run: async () => { await restoreEntity("area", area.id); await load(); } },
+    });
   }
 
   onMount(load);
@@ -75,7 +78,7 @@
 {:else if error}
   <div class="m-6 rounded-lg border border-red-500/20 bg-red-500/5 p-3 text-sm text-red-300">{error}</div>
 {:else if loading}
-  <div class="p-6 text-sm text-white/40">Loading…</div>
+  <div class="p-6 text-sm text-fg/40">Loading…</div>
 {:else}
   <div class="p-6">
     <div class="mb-6 flex gap-2">
@@ -83,19 +86,19 @@
         bind:value={newName}
         onkeydown={(e) => e.key === "Enter" && add()}
         placeholder="New life area (Health, Career, Finance…)"
-        class="flex-1 rounded-lg border border-white/10 bg-white/[0.03] px-3 py-2 text-sm outline-none placeholder:text-white/30 focus:border-white/25"
+        class="flex-1 rounded-lg border border-fg/10 bg-fg/[0.03] px-3 py-2 text-sm outline-none placeholder:text-fg/30 focus:border-fg/25"
       />
-      <button type="button" onclick={add} class="rounded-lg bg-sky-500/80 px-4 py-2 text-sm font-medium text-white hover:bg-sky-500">Add</button>
+      <button type="button" onclick={add} class="rounded-lg bg-accent/80 px-4 py-2 text-sm font-medium text-fg hover:bg-accent">Add</button>
     </div>
 
     {#if areas.length === 0}
-      <div class="rounded-xl border border-dashed border-white/10 p-10 text-center text-sm text-white/40">
+      <div class="rounded-xl border border-dashed border-fg/10 p-10 text-center text-sm text-fg/40">
         No areas yet. Areas are the permanent domains of your life and hold all your projects.
       </div>
     {:else}
       <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         {#each areas as area (area.id)}
-          <div class="rounded-xl border border-white/10 bg-white/[0.03] p-4">
+          <div class="rounded-xl border border-fg/10 bg-fg/[0.03] p-4">
             <div class="flex items-center gap-2.5">
               <span class="h-3 w-3 shrink-0 rounded-full" style="background: {area.color ?? '#64748b'}"></span>
               {#if editingId === area.id}
@@ -105,18 +108,18 @@
                   autofocus
                   onblur={commitRename}
                   onkeydown={(e) => e.key === "Enter" && commitRename()}
-                  class="flex-1 rounded bg-white/10 px-1.5 py-0.5 text-sm outline-none"
+                  class="flex-1 rounded bg-fg/10 px-1.5 py-0.5 text-sm outline-none"
                 />
               {:else}
                 <button
                   type="button"
                   ondblclick={() => ((editingId = area.id), (editName = area.name))}
-                  class="flex-1 truncate text-left text-sm font-medium text-white/90"
+                  class="flex-1 truncate text-left text-sm font-medium text-fg/90"
                 >
                   {area.name}
                 </button>
               {/if}
-              <span class="shrink-0 text-[11px] text-white/35">{counts[area.id] ?? 0} proj</span>
+              <span class="shrink-0 text-[11px] text-fg/35">{counts[area.id] ?? 0} proj</span>
             </div>
 
             <!-- color swatches -->
@@ -126,18 +129,18 @@
                   type="button"
                   onclick={() => setColor(area, c)}
                   aria-label="Set color"
-                  class="h-4 w-4 rounded-full ring-offset-1 ring-offset-[#0c0d10] transition-transform hover:scale-110 {area.color === c ? 'ring-2 ring-white/70' : ''}"
+                  class="h-4 w-4 rounded-full ring-offset-1 ring-offset-bg transition-transform hover:scale-110 {area.color === c ? 'ring-2 ring-fg/70' : ''}"
                   style="background: {c}"
                 ></button>
               {/each}
             </div>
 
             <div class="mt-3 flex items-center gap-3">
-              <a href="/areas/{area.id}" class="text-[11px] text-sky-400 hover:underline">Open area →</a>
+              <a href="/areas/{area.id}" class="text-[11px] text-accent hover:underline">Open area →</a>
               <button
                 type="button"
                 onclick={() => remove(area)}
-                class="ml-auto text-[11px] text-white/35 hover:text-amber-300"
+                class="ml-auto text-[11px] text-fg/35 hover:text-amber-300"
               >
                 Archive
               </button>

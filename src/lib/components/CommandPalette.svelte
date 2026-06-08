@@ -16,8 +16,35 @@
 
   const desktop = isTauri();
 
+  const NAV: { label: string; href: string; icon: IconName }[] = [
+    { label: "Dashboard", href: "/", icon: "dashboard" },
+    { label: "Tasks", href: "/tasks", icon: "tasks" },
+    { label: "Daily Hub", href: "/daily", icon: "today" },
+    { label: "Notes", href: "/notes", icon: "notes" },
+    { label: "Calendar", href: "/calendar", icon: "calendar" },
+    { label: "Projects", href: "/projects", icon: "projects" },
+    { label: "Areas", href: "/areas", icon: "areas" },
+    { label: "Habits", href: "/habits", icon: "habits" },
+    { label: "People", href: "/people", icon: "people" },
+    { label: "Settings", href: "/settings", icon: "user" },
+    { label: "Archive", href: "/archive", icon: "archive" },
+  ];
+
+  /** Subsequence fuzzy match: chars of q appear in order within text. */
+  function fuzzy(q: string, text: string): boolean {
+    if (!q) return true;
+    const t = text.toLowerCase();
+    let i = 0;
+    for (const ch of q.toLowerCase()) {
+      i = t.indexOf(ch, i);
+      if (i === -1) return false;
+      i++;
+    }
+    return true;
+  }
+
   interface Item {
-    kind: "jump" | "create";
+    kind: "nav" | "jump" | "create";
     icon: IconName;
     label: string;
     sub?: string;
@@ -69,28 +96,29 @@
   }
 
   const results = $derived.by<Item[]>(() => {
-    const q = query.trim().toLowerCase();
-    const jumps: Item[] = index
-      .filter((e) => !q || e.label.toLowerCase().includes(q))
-      .slice(0, 8)
-      .map((e) => ({
-        kind: "jump",
-        icon: e.icon,
-        label: e.label,
-        sub: e.type,
-        run: () => go(e.href),
-      }));
+    const q = query.trim();
+
+    const navs: Item[] = NAV
+      .filter((n) => fuzzy(q, "go to " + n.label) || fuzzy(q, n.label))
+      .slice(0, q ? 5 : 11)
+      .map((n) => ({ kind: "nav", icon: n.icon, label: `Go to ${n.label}`, sub: "navigate", run: () => go(n.href) }));
+
+    const jumps: Item[] = q
+      ? index.filter((e) => fuzzy(q, e.label)).slice(0, 8).map((e) => ({
+          kind: "jump", icon: e.icon, label: e.label, sub: e.type, run: () => go(e.href),
+        }))
+      : [];
 
     const creates: Item[] = [];
     if (q) {
-      const title = query.trim();
+      const title = q;
       creates.push(
         { kind: "create", icon: "tasks", label: `Create task “${title}”`, run: async () => { await taskDb.create(title); go("/tasks"); } },
         { kind: "create", icon: "notes", label: `Create note “${title}”`, run: async () => { const n = await noteDb.create(title); go(`/notes?id=${n.id}`); } },
         { kind: "create", icon: "people", label: `Add person “${title}”`, run: async () => { const p = await peopleDb.create(title); go(`/people?id=${p.id}`); } },
       );
     }
-    return [...jumps, ...creates];
+    return [...jumps, ...navs, ...creates];
   });
 
   // keep active index in range
@@ -129,38 +157,38 @@
       tabindex="-1"
       onclick={(e) => e.stopPropagation()}
       onkeydown={() => {}}
-      class="w-full max-w-xl overflow-hidden rounded-2xl border border-white/15 bg-[#15171c]/95 shadow-2xl backdrop-blur-2xl"
+      class="w-full max-w-xl overflow-hidden rounded-2xl border border-fg/15 bg-surface/95 shadow-2xl backdrop-blur-2xl"
     >
-      <div class="flex items-center gap-2 border-b border-white/10 px-4">
-        <span class="text-white/40"><Icon name="search" size={18} /></span>
+      <div class="flex items-center gap-2 border-b border-fg/10 px-4">
+        <span class="text-fg/40"><Icon name="search" size={18} /></span>
         <input
           bind:this={input}
           bind:value={query}
           onkeydown={onKey}
           placeholder="Search or create…"
-          class="w-full bg-transparent py-3.5 text-sm outline-none placeholder:text-white/30"
+          class="w-full bg-transparent py-3.5 text-sm outline-none placeholder:text-fg/30"
         />
-        <kbd class="rounded bg-white/10 px-1.5 py-0.5 text-[10px] text-white/45">esc</kbd>
+        <kbd class="rounded bg-fg/10 px-1.5 py-0.5 text-[10px] text-fg/45">esc</kbd>
       </div>
 
       <div class="max-h-[50vh] overflow-y-auto p-1.5">
         {#if !desktop}
-          <p class="px-3 py-6 text-center text-sm text-white/35">Search needs the desktop app (local database).</p>
+          <p class="px-3 py-6 text-center text-sm text-fg/35">Search needs the desktop app (local database).</p>
         {:else if !loaded}
-          <p class="px-3 py-6 text-center text-sm text-white/35">Loading…</p>
+          <p class="px-3 py-6 text-center text-sm text-fg/35">Loading…</p>
         {:else if results.length === 0}
-          <p class="px-3 py-6 text-center text-sm text-white/35">No matches. Type to create something.</p>
+          <p class="px-3 py-6 text-center text-sm text-fg/35">No matches. Type to create something.</p>
         {:else}
           {#each results as item, i (item.kind + item.label)}
             <button
               type="button"
               onmouseenter={() => (active = i)}
               onclick={() => item.run()}
-              class="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left {active === i ? 'bg-white/10' : 'hover:bg-white/5'}"
+              class="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left {active === i ? 'bg-fg/10' : 'hover:bg-fg/5'}"
             >
-              <span class="text-white/45"><Icon name={item.icon} size={16} /></span>
-              <span class="min-w-0 flex-1 truncate text-sm {item.kind === 'create' ? 'text-sky-300' : 'text-white/85'}">{item.label}</span>
-              {#if item.sub}<span class="shrink-0 text-[10px] capitalize text-white/30">{item.sub}</span>{/if}
+              <span class="text-fg/45"><Icon name={item.icon} size={16} /></span>
+              <span class="min-w-0 flex-1 truncate text-sm {item.kind === 'create' ? 'text-accent' : 'text-fg/85'}">{item.label}</span>
+              {#if item.sub}<span class="shrink-0 text-[10px] capitalize text-fg/30">{item.sub}</span>{/if}
             </button>
           {/each}
         {/if}

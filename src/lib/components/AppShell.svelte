@@ -3,6 +3,8 @@
   import { ui } from "$lib/stores/ui.svelte";
   import Icon, { type IconName } from "$lib/components/Icon.svelte";
   import CommandPalette from "$lib/components/CommandPalette.svelte";
+  import Toaster from "$lib/components/Toaster.svelte";
+  import Titlebar from "$lib/components/Titlebar.svelte";
 
   let { children } = $props();
 
@@ -38,37 +40,39 @@
 
 <svelte:window on:keydown={onKeydown} />
 
-<div class="relative h-screen overflow-hidden bg-[#0c0d10] text-[#e7e9ee]">
+<div class="relative flex h-screen flex-col overflow-hidden bg-bg text-fg">
   <!-- Ambient glow -->
   <div
-    class="pointer-events-none absolute inset-x-0 top-[-20%] mx-auto h-[40rem] w-[40rem] rounded-full bg-sky-500/10 blur-[120px]"
+    class="pointer-events-none absolute inset-x-0 top-[-20%] mx-auto h-[40rem] w-[40rem] rounded-full bg-accent/10 blur-[120px]"
   ></div>
 
+  <Titlebar />
+
   <!-- Content -->
-  <main class="relative z-10 h-full overflow-y-auto pb-28">
+  <main class="relative z-10 min-h-0 flex-1 overflow-y-auto pb-28">
     {@render children()}
   </main>
 
   <!-- Floating dock -->
   <div class="absolute bottom-5 left-1/2 z-50 -translate-x-1/2">
     <nav
-      class="flex items-end gap-1 rounded-2xl border border-white/10 bg-white/[0.06] px-2 py-1.5 shadow-2xl shadow-black/40 backdrop-blur-2xl"
+      class="flex items-end gap-1 rounded-2xl border border-fg/10 bg-fg/[0.06] px-2 py-1.5 shadow-2xl shadow-black/40 backdrop-blur-2xl"
     >
       <!-- Brand tile = account/system menu (opens on hover) -->
       <div class="group relative flex flex-col items-center">
         <!-- hover menu (pb-3 bridges the gap so hover doesn't drop) -->
         <div class="invisible absolute bottom-full left-0 pb-3 opacity-0 transition-all duration-150 group-hover:visible group-hover:opacity-100">
-          <div class="w-44 overflow-hidden rounded-xl border border-white/15 bg-[#15171c]/95 shadow-2xl backdrop-blur-2xl">
-            <div class="border-b border-white/10 px-3 py-2">
-              <div class="text-sm font-semibold text-white">DANO OS</div>
-              <div class="text-[10px] text-white/40">Life Operating System</div>
+          <div class="w-44 overflow-hidden rounded-xl border border-fg/15 bg-surface/95 shadow-2xl backdrop-blur-2xl">
+            <div class="border-b border-fg/10 px-3 py-2">
+              <div class="text-sm font-semibold text-fg">DANO OS</div>
+              <div class="text-[10px] text-fg/40">Life Operating System</div>
             </div>
             {#each menu as m (m.label)}
               <a
                 href={m.href}
-                class="flex items-center gap-2.5 px-3 py-2 text-sm text-white/75 hover:bg-white/10 hover:text-white"
+                class="flex items-center gap-2.5 px-3 py-2 text-sm text-fg/75 hover:bg-fg/10 hover:text-fg"
               >
-                <span class="text-white/45"><Icon name={m.icon} size={16} /></span>
+                <span class="text-fg/45"><Icon name={m.icon} size={16} /></span>
                 {m.label}
               </a>
             {/each}
@@ -77,47 +81,47 @@
         <a
           href="/"
           aria-label="DANO home"
-          class="flex h-11 w-11 items-center justify-center overflow-hidden rounded-xl border border-white/15 transition-all duration-200 ease-out group-hover:-translate-y-1.5 group-hover:scale-110"
+          class="flex h-11 w-11 items-center justify-center overflow-hidden rounded-xl border border-fg/15 transition-all duration-200 ease-out group-hover:-translate-y-1.5 group-hover:scale-110"
         >
           <img src="/dano-logo.svg" alt="DANO" class="h-full w-full" />
         </a>
         <span class="mt-0.5 h-1 w-1 rounded-full bg-transparent"></span>
       </div>
-      <span class="mx-1 mb-3 h-7 w-px self-center bg-white/10"></span>
+      <span class="mx-1 mb-3 h-7 w-px self-center bg-fg/10"></span>
 
       {#each nav as item (item.href)}
         {@const active = isActive(item.href, $page.url.pathname)}
         <a href={item.href} class="group relative flex flex-col items-center">
           <span
-            class="pointer-events-none absolute -top-9 whitespace-nowrap rounded-md bg-black/80 px-2 py-1 text-[11px] text-white/90 opacity-0 shadow-lg transition-opacity duration-150 group-hover:opacity-100"
+            class="pointer-events-none absolute -top-9 whitespace-nowrap rounded-md bg-fg px-2 py-1 text-[11px] text-bg opacity-0 shadow-lg transition-opacity duration-150 group-hover:opacity-100"
           >
             {item.label}
           </span>
           <span
             class="flex h-11 w-11 items-center justify-center rounded-xl transition-all duration-200 ease-out group-hover:-translate-y-1.5 group-hover:scale-110
               {active
-              ? 'bg-white/15 text-white shadow-inner shadow-white/10'
-              : 'text-white/55 hover:bg-white/10 hover:text-white'}"
+              ? 'bg-fg/15 text-fg shadow-inner shadow-fg/10'
+              : 'text-fg/55 hover:bg-fg/10 hover:text-fg'}"
           >
             <Icon name={item.icon} />
           </span>
           <span
-            class="mt-0.5 h-1 w-1 rounded-full transition-colors {active ? 'bg-sky-400' : 'bg-transparent'}"
+            class="mt-0.5 h-1 w-1 rounded-full transition-colors {active ? 'bg-accent' : 'bg-transparent'}"
           ></span>
         </a>
       {/each}
 
       <!-- divider -->
-      <span class="mx-1 mb-3 h-7 w-px self-center bg-white/10"></span>
+      <span class="mx-1 mb-3 h-7 w-px self-center bg-fg/10"></span>
 
       <button type="button" onclick={() => ui.openCommand()} class="group relative flex flex-col items-center">
         <span
-          class="pointer-events-none absolute -top-9 flex items-center gap-1.5 whitespace-nowrap rounded-md bg-black/80 px-2 py-1 text-[11px] text-white/90 opacity-0 shadow-lg transition-opacity duration-150 group-hover:opacity-100"
+          class="pointer-events-none absolute -top-9 flex items-center gap-1.5 whitespace-nowrap rounded-md bg-fg px-2 py-1 text-[11px] text-bg opacity-0 shadow-lg transition-opacity duration-150 group-hover:opacity-100"
         >
-          Search <kbd class="rounded bg-white/15 px-1 text-[10px]">⌘K</kbd>
+          Search <kbd class="rounded bg-fg/15 px-1 text-[10px]">⌘K</kbd>
         </span>
         <span
-          class="flex h-11 w-11 items-center justify-center rounded-xl text-white/55 transition-all duration-200 ease-out hover:bg-white/10 hover:text-white group-hover:-translate-y-1.5 group-hover:scale-110"
+          class="flex h-11 w-11 items-center justify-center rounded-xl text-fg/55 transition-all duration-200 ease-out hover:bg-fg/10 hover:text-fg group-hover:-translate-y-1.5 group-hover:scale-110"
         >
           <Icon name="search" />
         </span>
@@ -127,4 +131,5 @@
   </div>
 
   <CommandPalette />
+  <Toaster />
 </div>

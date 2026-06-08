@@ -68,13 +68,13 @@
 </script>
 
 <PageHeader title="Tasks" subtitle="Today · Upcoming · Board · List">
-  <div class="flex rounded-lg border border-white/10 p-0.5">
+  <div class="flex rounded-lg border border-fg/10 p-0.5">
     {#each views as v (v.id)}
       <button
         type="button"
         onclick={() => (view = v.id)}
         class="rounded-md px-2.5 py-1 text-xs transition-colors
-          {view === v.id ? 'bg-white/10 text-white' : 'text-white/50 hover:text-white/80'}"
+          {view === v.id ? 'bg-fg/10 text-fg' : 'text-fg/50 hover:text-fg/80'}"
       >
         {v.label}
       </button>
@@ -94,20 +94,20 @@
       bind:value={newTitle}
       onkeydown={(e) => e.key === "Enter" && add()}
       placeholder="Add a task and press Enter…"
-      class="w-full rounded-lg border border-white/10 bg-white/[0.03] px-3 py-2 text-sm outline-none placeholder:text-white/30 focus:border-white/25"
+      class="w-full rounded-lg border border-fg/10 bg-fg/[0.03] px-3 py-2 text-sm outline-none placeholder:text-fg/30 focus:border-fg/25"
     />
   </div>
 
   {#if error}
     <div class="m-6 rounded-lg border border-red-500/20 bg-red-500/5 p-3 text-sm text-red-300">{error}</div>
   {:else if loading}
-    <div class="p-6 text-sm text-white/40">Loading…</div>
+    <div class="p-6 text-sm text-fg/40">Loading…</div>
   {:else if view === "board"}
     <TaskBoard items={all} reload={load} />
   {:else}
     {@const list = view === "today" ? todayTasks : view === "upcoming" ? upcomingTasks : all}
     {#if list.length === 0}
-      <div class="p-6 text-sm text-white/35">
+      <div class="p-6 text-sm text-fg/35">
         {view === "today" ? "Nothing due today. Enjoy it." : "No tasks here yet."}
       </div>
     {:else}

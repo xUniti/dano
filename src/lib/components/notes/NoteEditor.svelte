@@ -1,6 +1,7 @@
 <script lang="ts">
   import { tick } from "svelte";
-  import { notes as noteDb, people as peopleDb, tasks as taskDb, projects as projectDb, archiveEntity } from "$lib/db";
+  import { notes as noteDb, people as peopleDb, tasks as taskDb, projects as projectDb, archiveEntity, restoreEntity } from "$lib/db";
+  import { toasts } from "$lib/stores/toast.svelte";
   import { link as gLink, neighbors } from "$lib/graph";
   import { renderMarkdown } from "$lib/markdown";
   import type { Note, Person, Task, EntityType } from "$lib/types";
@@ -141,40 +142,43 @@
   }
 
   async function del() {
-    if (!confirm("Archive this note? You can restore it later from Archive.")) return;
-    await archiveEntity("note", noteId);
+    const archivedId = noteId;
+    await archiveEntity("note", archivedId);
     onChange();
+    toasts.show("Note archived", {
+      action: { label: "Undo", run: async () => { await restoreEntity("note", archivedId); onChange(); } },
+    });
   }
 </script>
 
 {#if note}
   <div class="flex h-full flex-col">
     <!-- Title + toolbar -->
-    <div class="flex items-center gap-2 border-b border-white/10 px-5 py-3">
+    <div class="flex items-center gap-2 border-b border-fg/10 px-5 py-3">
       <input
         bind:this={titleEl}
         bind:value={title}
         onblur={saveTitle}
         placeholder="Untitled"
-        class="flex-1 bg-transparent text-lg font-semibold tracking-tight outline-none placeholder:text-white/30"
+        class="flex-1 bg-transparent text-lg font-semibold tracking-tight outline-none placeholder:text-fg/30"
       />
       <button
         type="button"
         onclick={() => (preview = !preview)}
-        class="rounded-md border border-white/10 px-2.5 py-1 text-xs text-white/60 hover:bg-white/5 hover:text-white"
+        class="rounded-md border border-fg/10 px-2.5 py-1 text-xs text-fg/60 hover:bg-fg/5 hover:text-fg"
       >
         {preview ? "Edit" : "Preview"}
       </button>
-      <button type="button" onclick={del} class="rounded-md px-2 py-1 text-xs text-white/40 hover:bg-amber-500/15 hover:text-amber-300">Archive</button>
+      <button type="button" onclick={del} class="rounded-md px-2 py-1 text-xs text-fg/40 hover:bg-amber-500/15 hover:text-amber-300">Archive</button>
     </div>
 
     <!-- Tags -->
-    <div class="border-b border-white/10 px-5 py-2">
+    <div class="border-b border-fg/10 px-5 py-2">
       <input
         bind:value={tags}
         onblur={saveTags}
         placeholder="tags, comma, separated"
-        class="w-full bg-transparent text-xs text-white/60 outline-none placeholder:text-white/25"
+        class="w-full bg-transparent text-xs text-fg/60 outline-none placeholder:text-fg/25"
       />
     </div>
 
@@ -182,7 +186,7 @@
     <div class="relative min-h-0 flex-1 overflow-y-auto">
       {#if preview}
         <!-- eslint-disable-next-line svelte/no-at-html-tags -->
-        <div class="selectable prose-invert px-5 py-4 text-sm leading-relaxed text-white/85">{@html renderMarkdown(content)}</div>
+        <div class="selectable prose-invert px-5 py-4 text-sm leading-relaxed text-fg/85">{@html renderMarkdown(content)}</div>
       {:else}
         <textarea
           bind:this={textarea}
@@ -191,19 +195,19 @@
           onblur={saveContent}
           onkeydown={(e) => e.key === "Escape" && (mention = null)}
           placeholder="Write in markdown… type @ to mention a person, # to link a task"
-          class="selectable h-full w-full resize-none bg-transparent px-5 py-4 font-mono text-sm leading-relaxed outline-none placeholder:text-white/25"
+          class="selectable h-full w-full resize-none bg-transparent px-5 py-4 font-mono text-sm leading-relaxed outline-none placeholder:text-fg/25"
         ></textarea>
 
         {#if mention && suggestions.length > 0}
-          <div class="absolute left-5 top-3 z-20 w-72 overflow-hidden rounded-lg border border-white/15 bg-[#15171c] shadow-2xl">
-            <div class="border-b border-white/10 px-3 py-1.5 text-[10px] uppercase tracking-wide text-white/35">
+          <div class="absolute left-5 top-3 z-20 w-72 overflow-hidden rounded-lg border border-fg/15 bg-surface shadow-2xl">
+            <div class="border-b border-fg/10 px-3 py-1.5 text-[10px] uppercase tracking-wide text-fg/35">
               {mention.trigger === "@" ? "People" : "Tasks"}
             </div>
             {#each suggestions as s (s.id)}
               <button
                 type="button"
                 onmousedown={(e) => (e.preventDefault(), choose(s))}
-                class="block w-full truncate px-3 py-2 text-left text-sm text-white/80 hover:bg-white/10"
+                class="block w-full truncate px-3 py-2 text-left text-sm text-fg/80 hover:bg-fg/10"
               >
                 {s.label}
               </button>
@@ -215,15 +219,15 @@
 
     <!-- Backlinks -->
     {#if backlinks.length > 0}
-      <div class="border-t border-white/10 px-5 py-3">
-        <div class="mb-1.5 text-[10px] uppercase tracking-wide text-white/35">Linked</div>
+      <div class="border-t border-fg/10 px-5 py-3">
+        <div class="mb-1.5 text-[10px] uppercase tracking-wide text-fg/35">Linked</div>
         <div class="flex flex-wrap gap-1.5">
           {#each backlinks as b (b.type + b.id)}
             {#if b.href}
-              <a href={b.href} class="rounded-md bg-white/5 px-2 py-1 text-xs text-sky-300 hover:bg-white/10">{b.label}</a>
+              <a href={b.href} class="rounded-md bg-fg/5 px-2 py-1 text-xs text-accent hover:bg-fg/10">{b.label}</a>
             {:else}
-              <span class="rounded-md bg-white/5 px-2 py-1 text-xs text-white/60">
-                <span class="text-white/35">{b.type}:</span> {b.label}
+              <span class="rounded-md bg-fg/5 px-2 py-1 text-xs text-fg/60">
+                <span class="text-fg/35">{b.type}:</span> {b.label}
               </span>
             {/if}
           {/each}
@@ -232,5 +236,5 @@
     {/if}
   </div>
 {:else}
-  <div class="flex h-full items-center justify-center text-sm text-white/30">Loading…</div>
+  <div class="flex h-full items-center justify-center text-sm text-fg/30">Loading…</div>
 {/if}

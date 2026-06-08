@@ -45,18 +45,18 @@
     <code class="rounded bg-black/30 px-1">npm run tauri dev</code> to use it.
   </div>
 {:else if loading}
-  <div class="p-6 text-sm text-white/40">Loading…</div>
+  <div class="p-6 text-sm text-fg/40">Loading…</div>
 {:else if items.length === 0}
-  <div class="m-6 rounded-xl border border-dashed border-white/10 p-10 text-center text-sm text-white/40">
+  <div class="m-6 rounded-xl border border-dashed border-fg/10 p-10 text-center text-sm text-fg/40">
     Nothing archived. Items you archive will appear here, ready to restore or permanently delete.
   </div>
 {:else}
   <div class="space-y-1.5 p-6">
     {#each items as it (it.type + it.id)}
-      <div class="flex items-center gap-3 rounded-lg border border-white/5 bg-white/[0.02] px-3 py-2">
-        <span class="w-16 shrink-0 text-[10px] uppercase tracking-wide text-white/35">{typeLabel[it.type] ?? it.type}</span>
-        <span class="min-w-0 flex-1 truncate text-sm text-white/85">{it.label}</span>
-        <button type="button" onclick={() => restore(it.type, it.id)} class="rounded-md border border-white/10 px-2.5 py-1 text-xs text-white/70 hover:bg-white/5 hover:text-white">Restore</button>
+      <div class="flex items-center gap-3 rounded-lg border border-fg/5 bg-fg/[0.02] px-3 py-2">
+        <span class="w-16 shrink-0 text-[10px] uppercase tracking-wide text-fg/35">{typeLabel[it.type] ?? it.type}</span>
+        <span class="min-w-0 flex-1 truncate text-sm text-fg/85">{it.label}</span>
+        <button type="button" onclick={() => restore(it.type, it.id)} class="rounded-md border border-fg/10 px-2.5 py-1 text-xs text-fg/70 hover:bg-fg/5 hover:text-fg">Restore</button>
         <button type="button" onclick={() => purge(it.type, it.id, it.label)} class="rounded-md px-2.5 py-1 text-xs text-red-300/80 hover:bg-red-500/15 hover:text-red-300">Delete</button>
       </div>
     {/each}

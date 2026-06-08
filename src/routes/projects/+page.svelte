@@ -69,7 +69,7 @@
     <button
       type="button"
       onclick={() => ((newAreaOpen = !newAreaOpen), (newAreaName = ""))}
-      class="rounded-lg border border-white/10 px-3 py-1.5 text-xs text-white/70 hover:bg-white/5 hover:text-white"
+      class="rounded-lg border border-fg/10 px-3 py-1.5 text-xs text-fg/70 hover:bg-fg/5 hover:text-fg"
     >
       + New area
     </button>
@@ -84,7 +84,7 @@
 {:else if error}
   <div class="m-6 rounded-lg border border-red-500/20 bg-red-500/5 p-3 text-sm text-red-300">{error}</div>
 {:else if loading}
-  <div class="p-6 text-sm text-white/40">Loading…</div>
+  <div class="p-6 text-sm text-fg/40">Loading…</div>
 {:else}
   <div class="space-y-8 p-6">
     {#if newAreaOpen}
@@ -95,14 +95,14 @@
           autofocus
           onkeydown={(e) => e.key === "Enter" && addArea()}
           placeholder="Area name (e.g. Health, Career)…"
-          class="flex-1 rounded-lg border border-white/15 bg-white/[0.03] px-3 py-2 text-sm outline-none placeholder:text-white/30 focus:border-white/30"
+          class="flex-1 rounded-lg border border-fg/15 bg-fg/[0.03] px-3 py-2 text-sm outline-none placeholder:text-fg/30 focus:border-fg/30"
         />
-        <button type="button" onclick={addArea} class="rounded-lg bg-sky-500/80 px-3 py-2 text-sm font-medium text-white hover:bg-sky-500">Add</button>
+        <button type="button" onclick={addArea} class="rounded-lg bg-accent/80 px-3 py-2 text-sm font-medium text-fg hover:bg-accent">Add</button>
       </div>
     {/if}
 
     {#if areas.length === 0}
-      <div class="rounded-xl border border-dashed border-white/10 p-10 text-center text-sm text-white/40">
+      <div class="rounded-xl border border-dashed border-fg/10 p-10 text-center text-sm text-fg/40">
         No areas yet. Create your first life area (Health, Career, Finance…) to hold projects.
       </div>
     {/if}
@@ -111,12 +111,12 @@
       <section>
         <div class="mb-3 flex items-center gap-2">
           <span class="h-2.5 w-2.5 rounded-full" style="background: {area.color ?? '#64748b'}"></span>
-          <h2 class="text-sm font-semibold tracking-tight text-white/85">{area.name}</h2>
-          <span class="text-[11px] text-white/30">{projectsByArea[area.id]?.length ?? 0}</span>
+          <h2 class="text-sm font-semibold tracking-tight text-fg/85">{area.name}</h2>
+          <span class="text-[11px] text-fg/30">{projectsByArea[area.id]?.length ?? 0}</span>
           <button
             type="button"
             onclick={() => ((projectInputFor = projectInputFor === area.id ? null : area.id), (newProjectName = ""))}
-            class="ml-auto rounded-md px-2 py-1 text-xs text-white/50 hover:bg-white/5 hover:text-white/80"
+            class="ml-auto rounded-md px-2 py-1 text-xs text-fg/50 hover:bg-fg/5 hover:text-fg/80"
           >
             + Project
           </button>
@@ -130,14 +130,14 @@
               autofocus
               onkeydown={(e) => e.key === "Enter" && addProject(area.id)}
               placeholder="Project name…"
-              class="flex-1 rounded-lg border border-white/15 bg-white/[0.03] px-3 py-2 text-sm outline-none placeholder:text-white/30 focus:border-white/30"
+              class="flex-1 rounded-lg border border-fg/15 bg-fg/[0.03] px-3 py-2 text-sm outline-none placeholder:text-fg/30 focus:border-fg/30"
             />
-            <button type="button" onclick={() => addProject(area.id)} class="rounded-lg bg-sky-500/80 px-3 py-2 text-sm font-medium text-white hover:bg-sky-500">Add</button>
+            <button type="button" onclick={() => addProject(area.id)} class="rounded-lg bg-accent/80 px-3 py-2 text-sm font-medium text-fg hover:bg-accent">Add</button>
           </div>
         {/if}
 
         {#if (projectsByArea[area.id]?.length ?? 0) === 0}
-          <p class="text-xs text-white/30">No projects in this area yet.</p>
+          <p class="text-xs text-fg/30">No projects in this area yet.</p>
         {:else}
           <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {#each projectsByArea[area.id] as project (project.id)}

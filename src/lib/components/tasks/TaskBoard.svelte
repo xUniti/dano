@@ -19,8 +19,8 @@
   const prioColor: Record<TaskPriority, string> = {
     p1: "bg-red-500/80",
     p2: "bg-amber-500/80",
-    p3: "bg-sky-500/60",
-    p4: "bg-white/25",
+    p3: "bg-accent/60",
+    p4: "bg-fg/25",
   };
 
   let dragId = $state<string | null>(null);
@@ -50,11 +50,11 @@
       ondragleave={() => (overCol === col.status ? (overCol = null) : null)}
       ondrop={() => drop(col.status)}
       class="flex min-h-32 flex-col gap-2 rounded-xl border p-2 transition-colors
-        {overCol === col.status ? 'border-sky-500/50 bg-sky-500/5' : 'border-white/10 bg-white/[0.02]'}"
+        {overCol === col.status ? 'border-accent/50 bg-accent/5' : 'border-fg/10 bg-fg/[0.02]'}"
     >
       <div class="flex items-center justify-between px-1 py-0.5">
-        <span class="text-xs font-medium text-white/70">{col.label}</span>
-        <span class="text-[10px] text-white/30">{byStatus(col.status).length}</span>
+        <span class="text-xs font-medium text-fg/70">{col.label}</span>
+        <span class="text-[10px] text-fg/30">{byStatus(col.status).length}</span>
       </div>
 
       {#each byStatus(col.status) as task (task.id)}
@@ -63,11 +63,11 @@
           draggable="true"
           ondragstart={() => (dragId = task.id)}
           ondragend={() => ((dragId = null), (overCol = null))}
-          class="cursor-grab rounded-lg border border-white/5 bg-[#15171c] p-2.5 active:cursor-grabbing"
+          class="cursor-grab rounded-lg border border-fg/5 bg-surface p-2.5 active:cursor-grabbing"
         >
           <div class="flex items-start gap-2">
             <span class="mt-1 h-2 w-2 shrink-0 rounded-full {prioColor[task.priority]}"></span>
-            <span class="text-sm {task.status === 'done' ? 'text-white/40 line-through' : 'text-white/90'}"
+            <span class="text-sm {task.status === 'done' ? 'text-fg/40 line-through' : 'text-fg/90'}"
               >{task.title}</span
             >
           </div>
@@ -75,7 +75,7 @@
             <div
               class="mt-1.5 pl-4 text-[11px] {isOverdue(task.due_at) && task.status !== 'done'
                 ? 'text-red-400'
-                : 'text-white/40'}"
+                : 'text-fg/40'}"
             >
               {dueLabel(task.due_at)}
             </div>

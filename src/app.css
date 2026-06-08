@@ -1,8 +1,27 @@
 @import "tailwindcss";
 
-/* DANO base theme — calm, dark-first, keyboard-friendly. */
+/* DANO theme tokens. Surfaces are built from `fg` at low alpha so they invert
+   automatically between dark and light; only --bg / --fg / --surface / --accent flip. */
+@theme inline {
+  --color-bg: var(--bg);
+  --color-fg: var(--fg);
+  --color-surface: var(--surface);
+  --color-accent: var(--accent);
+}
+
 :root {
   color-scheme: dark;
+  --bg: #0c0d10;
+  --fg: #e7e9ee;
+  --surface: #15171c;
+  --accent: #38bdf8; /* sky — overridden by the accent picker */
+}
+
+:root.light {
+  color-scheme: light;
+  --bg: #f5f6f8;
+  --fg: #14161a;
+  --surface: #ffffff;
 }
 
 html,
@@ -12,8 +31,8 @@ body {
 
 body {
   margin: 0;
-  background-color: #0e0f12;
-  color: #e7e9ee;
+  background-color: var(--bg);
+  color: var(--fg);
   font-family:
     Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica,
     Arial, sans-serif;

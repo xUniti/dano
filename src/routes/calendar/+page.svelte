@@ -167,9 +167,9 @@
 
 <PageHeader title="Calendar" subtitle="Events · task deadlines · birthdays">
   <div class="flex items-center gap-2">
-    <div class="flex rounded-lg border border-white/10 p-0.5">
+    <div class="flex rounded-lg border border-fg/10 p-0.5">
       {#each views as v (v)}
-        <button type="button" onclick={() => (view = v)} class="rounded-md px-2.5 py-1 text-xs capitalize transition-colors {view === v ? 'bg-white/10 text-white' : 'text-white/50 hover:text-white/80'}">{v}</button>
+        <button type="button" onclick={() => (view = v)} class="rounded-md px-2.5 py-1 text-xs capitalize transition-colors {view === v ? 'bg-fg/10 text-fg' : 'text-fg/50 hover:text-fg/80'}">{v}</button>
       {/each}
     </div>
   </div>
@@ -184,25 +184,25 @@
   <!-- subheader: nav + add event -->
   <div class="flex flex-wrap items-center gap-3 px-6 py-3">
     {#if view !== "agenda"}
-      <button type="button" onclick={() => shift(-1)} class="rounded-md px-2 py-1 text-white/50 hover:bg-white/5 hover:text-white">←</button>
+      <button type="button" onclick={() => shift(-1)} class="rounded-md px-2 py-1 text-fg/50 hover:bg-fg/5 hover:text-fg">←</button>
     {/if}
-    <span class="text-sm font-medium text-white/80">{heading}</span>
+    <span class="text-sm font-medium text-fg/80">{heading}</span>
     {#if view !== "agenda"}
-      <button type="button" onclick={() => shift(1)} class="rounded-md px-2 py-1 text-white/50 hover:bg-white/5 hover:text-white">→</button>
-      <button type="button" onclick={() => (anchor = new Date())} class="text-xs text-sky-400 hover:underline">Today</button>
+      <button type="button" onclick={() => shift(1)} class="rounded-md px-2 py-1 text-fg/50 hover:bg-fg/5 hover:text-fg">→</button>
+      <button type="button" onclick={() => (anchor = new Date())} class="text-xs text-accent hover:underline">Today</button>
     {/if}
     <div class="ml-auto flex gap-2">
-      <input type="date" bind:value={evDate} class="rounded-md border border-white/10 bg-white/[0.03] px-2 py-1 text-xs outline-none [color-scheme:dark]" />
-      <input bind:value={evTitle} onkeydown={(e) => e.key === "Enter" && addEvent()} placeholder="New event…" class="rounded-md border border-white/10 bg-white/[0.03] px-2.5 py-1 text-xs outline-none placeholder:text-white/30 focus:border-white/25" />
-      <button type="button" onclick={addEvent} class="rounded-md bg-sky-500/80 px-3 py-1 text-xs font-medium text-white hover:bg-sky-500">Add</button>
+      <input type="date" bind:value={evDate} class="rounded-md border border-fg/10 bg-fg/[0.03] px-2 py-1 text-xs outline-none [color-scheme:dark]" />
+      <input bind:value={evTitle} onkeydown={(e) => e.key === "Enter" && addEvent()} placeholder="New event…" class="rounded-md border border-fg/10 bg-fg/[0.03] px-2.5 py-1 text-xs outline-none placeholder:text-fg/30 focus:border-fg/25" />
+      <button type="button" onclick={addEvent} class="rounded-md bg-accent/80 px-3 py-1 text-xs font-medium text-fg hover:bg-accent">Add</button>
     </div>
   </div>
 
   {#if loading}
-    <div class="p-6 text-sm text-white/40">Loading…</div>
+    <div class="p-6 text-sm text-fg/40">Loading…</div>
   {:else if view === "month"}
     <div class="px-6 pb-6">
-      <div class="grid grid-cols-7 gap-px text-[11px] text-white/40">
+      <div class="grid grid-cols-7 gap-px text-[11px] text-fg/40">
         {#each ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"] as d (d)}<div class="px-2 py-1">{d}</div>{/each}
       </div>
       <div class="grid grid-cols-7 gap-1.5">
@@ -210,16 +210,16 @@
           {@const inMonth = cell.getMonth() === anchor.getMonth()}
           {@const its = itemsOn(cell.getTime())}
           {@const isToday = todayKey(cell) === todayK}
-          <div class="min-h-20 rounded-lg border p-1.5 {inMonth ? 'border-white/10 bg-white/[0.02]' : 'border-transparent bg-transparent opacity-40'} {isToday ? 'ring-1 ring-sky-400/60' : ''}">
-            <div class="mb-1 text-[11px] {isToday ? 'font-semibold text-sky-300' : 'text-white/45'}">{cell.getDate()}</div>
+          <div class="min-h-20 rounded-lg border p-1.5 {inMonth ? 'border-fg/10 bg-fg/[0.02]' : 'border-transparent bg-transparent opacity-40'} {isToday ? 'ring-1 ring-accent/60' : ''}">
+            <div class="mb-1 text-[11px] {isToday ? 'font-semibold text-accent' : 'text-fg/45'}">{cell.getDate()}</div>
             <div class="space-y-0.5">
               {#each its.slice(0, 3) as it (it.kind + it.id)}
-                <div class="flex items-center gap-1 truncate text-[10px] text-white/75">
+                <div class="flex items-center gap-1 truncate text-[10px] text-fg/75">
                   <span class="h-1.5 w-1.5 shrink-0 rounded-full" style="background:{kindColor[it.kind]}"></span>
                   <span class="truncate">{it.title}</span>
                 </div>
               {/each}
-              {#if its.length > 3}<div class="text-[10px] text-white/35">+{its.length - 3} more</div>{/if}
+              {#if its.length > 3}<div class="text-[10px] text-fg/35">+{its.length - 3} more</div>{/if}
             </div>
           </div>
         {/each}
@@ -228,20 +228,20 @@
   {:else}
     <div class="space-y-4 px-6 pb-6">
       {#if listDays.length === 0}
-        <p class="text-sm text-white/35">Nothing scheduled.</p>
+        <p class="text-sm text-fg/35">Nothing scheduled.</p>
       {:else}
         {#each listDays as day (day.ms)}
           <div>
-            <div class="mb-1.5 text-xs font-medium {todayKey(new Date(day.ms)) === todayK ? 'text-sky-300' : 'text-white/55'}">{day.label}</div>
+            <div class="mb-1.5 text-xs font-medium {todayKey(new Date(day.ms)) === todayK ? 'text-accent' : 'text-fg/55'}">{day.label}</div>
             {#if day.items.length === 0}
-              <p class="text-xs text-white/25">—</p>
+              <p class="text-xs text-fg/25">—</p>
             {:else}
               <div class="space-y-1">
                 {#each day.items as it (it.kind + it.id)}
-                  <div class="flex items-center gap-2 rounded-lg border border-white/5 bg-white/[0.02] px-3 py-1.5">
+                  <div class="flex items-center gap-2 rounded-lg border border-fg/5 bg-fg/[0.02] px-3 py-1.5">
                     <span class="h-2 w-2 shrink-0 rounded-full" style="background:{kindColor[it.kind]}"></span>
-                    <span class="flex-1 truncate text-sm text-white/85">{it.title}</span>
-                    <span class="text-[10px] uppercase text-white/30">{it.kind}</span>
+                    <span class="flex-1 truncate text-sm text-fg/85">{it.title}</span>
+                    <span class="text-[10px] uppercase text-fg/30">{it.kind}</span>
                   </div>
                 {/each}
               </div>

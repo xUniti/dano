@@ -4,6 +4,7 @@
   import DashCard from "$lib/components/DashCard.svelte";
   import Bars from "$lib/components/charts/Bars.svelte";
   import Sparkline from "$lib/components/charts/Sparkline.svelte";
+  import Skeleton from "$lib/components/Skeleton.svelte";
   import {
     tasks as taskDb, projects as projectDb, notes as noteDb, people as peopleDb,
     habits as habitDb, habitCompletions, goals as goalDb, dailyHubs, linkTimestamps,
@@ -94,22 +95,29 @@
     The dashboard reads your local database. Launch the desktop app with <code class="rounded bg-black/30 px-1">npm run tauri dev</code> to see it.
   </div>
 {:else if loading}
-  <div class="p-6 text-sm text-white/40">Loading your life…</div>
+  <div class="space-y-3 p-6">
+    <div class="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+      {#each Array(6) as _, i (i)}<div class="rounded-xl border border-fg/10 bg-fg/[0.02] p-3"><Skeleton class="mb-2 h-7 w-12" /><Skeleton class="h-3 w-16" /></div>{/each}
+    </div>
+    <div class="grid gap-3 lg:grid-cols-3">
+      {#each Array(3) as _, i (i)}<div class="rounded-2xl border border-fg/10 bg-fg/[0.02] p-4"><Skeleton class="mb-3 h-4 w-28" /><Skeleton class="mb-2 h-16 w-full" /><Skeleton class="h-3 w-24" /></div>{/each}
+    </div>
+  </div>
 {:else}
   <div class="space-y-3 p-6">
     <!-- Overview tiles -->
     <div class="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
       {#each [
-        ["Connected", linkTs.length, "text-sky-300"],
-        ["Active tasks", activeTasks.length, "text-white/90"],
-        ["Overdue", overdue, overdue > 0 ? "text-red-300" : "text-white/90"],
-        ["Projects", activeProjects.length, "text-white/90"],
-        ["People", people.length, "text-white/90"],
-        ["Notes", notes, "text-white/90"],
+        ["Connected", linkTs.length, "text-accent"],
+        ["Active tasks", activeTasks.length, "text-fg/90"],
+        ["Overdue", overdue, overdue > 0 ? "text-red-300" : "text-fg/90"],
+        ["Projects", activeProjects.length, "text-fg/90"],
+        ["People", people.length, "text-fg/90"],
+        ["Notes", notes, "text-fg/90"],
       ] as [label, value, cls] (label)}
-        <div class="rounded-xl border border-white/10 bg-white/[0.02] p-3">
+        <div class="rounded-xl border border-fg/10 bg-fg/[0.02] p-3">
           <div class="text-2xl font-semibold {cls}">{value}</div>
-          <div class="text-[11px] text-white/40">{label}</div>
+          <div class="text-[11px] text-fg/40">{label}</div>
         </div>
       {/each}
     </div>
@@ -118,27 +126,27 @@
       <!-- Productivity -->
       <DashCard title="Productivity" href="/tasks">
         <div class="mb-2 flex items-baseline gap-2">
-          <span class="text-2xl font-semibold text-white/90">{completedWeek}</span>
-          <span class="text-xs text-white/40">completed this week</span>
+          <span class="text-2xl font-semibold text-fg/90">{completedWeek}</span>
+          <span class="text-xs text-fg/40">completed this week</span>
         </div>
-        <Bars data={completedByDay} labels={days14.map(dayNum)} color="#38bdf8" />
-        <div class="mt-2 text-[11px] text-white/35">Last 14 days · {overdue} overdue</div>
+        <Bars data={completedByDay} labels={days14.map(dayNum)} color="var(--accent)" />
+        <div class="mt-2 text-[11px] text-fg/35">Last 14 days · {overdue} overdue</div>
       </DashCard>
 
       <!-- Mood & Energy -->
       <DashCard title="Mood & Energy" href="/daily">
-        <div class="mb-1 flex items-center justify-between text-xs text-white/50"><span>Mood</span><span class="text-white/80">avg {avgMood}/10</span></div>
-        <Sparkline data={moodSeries} color="#38bdf8" min={0} max={10} height={38} />
-        <div class="mb-1 mt-3 flex items-center justify-between text-xs text-white/50"><span>Energy</span><span class="text-white/80">avg {avgEnergy}/10</span></div>
+        <div class="mb-1 flex items-center justify-between text-xs text-fg/50"><span>Mood</span><span class="text-fg/80">avg {avgMood}/10</span></div>
+        <Sparkline data={moodSeries} color="var(--accent)" min={0} max={10} height={38} />
+        <div class="mb-1 mt-3 flex items-center justify-between text-xs text-fg/50"><span>Energy</span><span class="text-fg/80">avg {avgEnergy}/10</span></div>
         <Sparkline data={energySeries} color="#34d399" min={0} max={10} height={38} />
-        <div class="mt-2 text-[11px] text-white/35">Last 30 days</div>
+        <div class="mt-2 text-[11px] text-fg/35">Last 30 days</div>
       </DashCard>
 
       <!-- Relationships & graph -->
       <DashCard title="Relationships & Graph" href="/people">
         <div class="mb-2 flex items-baseline gap-2">
-          <span class="text-2xl font-semibold text-sky-300">{linkTs.length}</span>
-          <span class="text-xs text-white/40">connected objects</span>
+          <span class="text-2xl font-semibold text-accent">{linkTs.length}</span>
+          <span class="text-xs text-fg/40">connected objects</span>
         </div>
         <Bars data={linksByDay} labels={days14.map(dayNum)} color="#a78bfa" height={40} />
         <div class="mt-3 space-y-1">
@@ -146,9 +154,9 @@
             <a href="/people?id={b.p.id}" class="flex items-center gap-2 text-xs text-amber-200/80">🎂 <span class="flex-1 truncate">{fullName(b.p)}</span><span>{b.d === 0 ? "today" : `${b.d}d`}</span></a>
           {/each}
           {#each followUps.slice(0, 3) as p (p.id)}
-            <a href="/people?id={p.id}" class="flex items-center gap-2 text-xs text-white/60">↻ <span class="flex-1 truncate">{fullName(p)}</span></a>
+            <a href="/people?id={p.id}" class="flex items-center gap-2 text-xs text-fg/60">↻ <span class="flex-1 truncate">{fullName(p)}</span></a>
           {/each}
-          {#if birthdays.length === 0 && followUps.length === 0}<p class="text-xs text-white/30">All relationships are warm.</p>{/if}
+          {#if birthdays.length === 0 && followUps.length === 0}<p class="text-xs text-fg/30">All relationships are warm.</p>{/if}
         </div>
       </DashCard>
     </div>
@@ -157,14 +165,14 @@
       <!-- Habit consistency -->
       <DashCard title="Habit Consistency" href="/habits">
         {#if habitStats.length === 0}
-          <p class="text-xs text-white/30">No habits yet.</p>
+          <p class="text-xs text-fg/30">No habits yet.</p>
         {:else}
           <div class="space-y-2.5">
             {#each habitStats as s (s.h.id)}
               <div>
                 <button type="button" onclick={() => toggleHabit(s.h)} class="flex w-full items-center gap-2 text-left">
-                  <span class="flex-1 truncate text-sm text-white/85">{s.h.name}</span>
-                  <span class="text-[11px] text-white/40">🔥{s.streak} · {s.rate}%</span>
+                  <span class="flex-1 truncate text-sm text-fg/85">{s.h.name}</span>
+                  <span class="text-[11px] text-fg/40">🔥{s.streak} · {s.rate}%</span>
                 </button>
                 <div class="mt-1 flex gap-[2px]">
                   {#each days14 as d (d)}
@@ -180,14 +188,14 @@
       <!-- Today focus -->
       <DashCard title="Today Focus" href="/tasks">
         {#if today.length === 0}
-          <p class="text-xs text-white/30">Nothing due today.</p>
+          <p class="text-xs text-fg/30">Nothing due today.</p>
         {:else}
           <div class="space-y-1.5">
             {#each today as t (t.id)}
               <button type="button" onclick={() => toggleTask(t)} class="flex w-full items-center gap-2 text-left">
-                <span class="flex h-4 w-4 shrink-0 items-center justify-center rounded border border-white/25 text-[10px]">{t.status === "done" ? "✓" : ""}</span>
-                <span class="flex-1 truncate text-sm text-white/85">{t.title}</span>
-                {#if t.due_at != null}<span class="text-[11px] {isOverdue(t.due_at) ? 'text-red-400' : 'text-white/35'}">{dueLabel(t.due_at)}</span>{/if}
+                <span class="flex h-4 w-4 shrink-0 items-center justify-center rounded border border-fg/25 text-[10px]">{t.status === "done" ? "✓" : ""}</span>
+                <span class="flex-1 truncate text-sm text-fg/85">{t.title}</span>
+                {#if t.due_at != null}<span class="text-[11px] {isOverdue(t.due_at) ? 'text-red-400' : 'text-fg/35'}">{dueLabel(t.due_at)}</span>{/if}
               </button>
             {/each}
           </div>
@@ -197,13 +205,13 @@
       <!-- Goal progress -->
       <DashCard title="Goal Progress">
         {#if goalProg.length === 0}
-          <p class="text-xs text-white/30">No goals yet. Link goals from a project.</p>
+          <p class="text-xs text-fg/30">No goals yet. Link goals from a project.</p>
         {:else}
           <div class="space-y-2.5">
             {#each goalProg as gp (gp.g.id)}
               <div>
-                <div class="flex items-center justify-between gap-2"><span class="truncate text-sm text-white/85">{gp.g.title}</span><span class="text-[10px] tabular-nums text-white/40">{gp.progress}%</span></div>
-                <div class="mt-1 h-1.5 overflow-hidden rounded-full bg-white/10"><div class="h-full rounded-full bg-indigo-400/80" style="width:{gp.progress}%"></div></div>
+                <div class="flex items-center justify-between gap-2"><span class="truncate text-sm text-fg/85">{gp.g.title}</span><span class="text-[10px] tabular-nums text-fg/40">{gp.progress}%</span></div>
+                <div class="mt-1 h-1.5 overflow-hidden rounded-full bg-fg/10"><div class="h-full rounded-full bg-indigo-400/80" style="width:{gp.progress}%"></div></div>
               </div>
             {/each}
           </div>
