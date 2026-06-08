@@ -21,9 +21,30 @@ import type {
 } from "./types";
 
 let _db: Database | null = null;
+// Serialize every query: concurrent reads/writes on tauri-plugin-sql (SQLite)
+// can deadlock, which left pages stuck on "Loading…". We run them one at a time.
+let _chain: Promise<unknown> = Promise.resolve();
+function serialize<T>(fn: () => Promise<T>): Promise<T> {
+  const result = _chain.then(fn, fn);
+  _chain = result.catch(() => {});
+  return result;
+}
+
 /** Lazily open the database; the first load runs pending migrations (Rust side). */
 export async function db(): Promise<Database> {
-  if (!_db) _db = await Database.load("sqlite:dano_v1.db");
+  if (!_db) {
+    const d = await Database.load("sqlite:dano_v1.db");
+    // Wrap select/execute so all DB access is queued through a single chain.
+    const raw = d as unknown as {
+      select: (q: string, p?: unknown[]) => Promise<unknown>;
+      execute: (q: string, p?: unknown[]) => Promise<unknown>;
+    };
+    const origSelect = raw.select.bind(raw);
+    const origExecute = raw.execute.bind(raw);
+    raw.select = (q, p) => serialize(() => origSelect(q, p));
+    raw.execute = (q, p) => serialize(() => origExecute(q, p));
+    _db = d;
+  }
   return _db;
 }
 
@@ -465,6 +486,123 @@ export const activity = {
       id: uid(), entity_type: opts.entityType ?? null, entity_id: opts.entityId ?? null,
       kind, title, detail: opts.detail ?? "", created_at: now(),
     });
+  },
+};
+
+/* --------------------------------------------------------------- Demo data */
+// Sample content for previewing the app. All rows use `demo-` ids so they can be
+// wiped cleanly. Stored only in the local DB — never part of the repo.
+
+export const demo = {
+  async load(): Promise<void> {
+    const conn = await db();
+    const t = now();
+    const DAY = 86_400_000;
+    const ms = (d: number) => t + d * DAY;
+    const key = (d: number) => {
+      const x = new Date(t + d * DAY);
+      return `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, "0")}-${String(x.getDate()).padStart(2, "0")}`;
+    };
+    const run = (sql: string, params: unknown[]) => conn.execute(sql, params);
+
+    // Areas
+    const areasD: [string, string, string][] = [
+      ["demo-area-health", "Health", "#34d399"],
+      ["demo-area-career", "Career", "#38bdf8"],
+      ["demo-area-learning", "Learning", "#a78bfa"],
+    ];
+    for (const [id, name, color] of areasD)
+      await run("INSERT OR IGNORE INTO areas (id,name,color,created_at,updated_at,archived) VALUES ($1,$2,$3,$4,$5,0)", [id, name, color, ms(-40), ms(-2)]);
+
+    // Goals
+    const goalsD: [string, string, string][] = [
+      ["demo-goal-5k", "Run a 5K", "Build up to a parkrun"],
+      ["demo-goal-launch", "Launch portfolio", "Ship the new personal site"],
+    ];
+    for (const [id, title, desc] of goalsD)
+      await run("INSERT OR IGNORE INTO goals (id,title,description,status,created_at,updated_at,archived) VALUES ($1,$2,$3,'active',$4,$5,0)", [id, title, desc, ms(-30), ms(-3)]);
+
+    // Projects (area_id, goal_id)
+    const projD: [string, string, string, string | null, number][] = [
+      ["demo-proj-website", "Website Redesign", "demo-area-career", "demo-goal-launch", 6],
+      ["demo-proj-5k", "5K Training", "demo-area-health", "demo-goal-5k", 25],
+      ["demo-proj-spanish", "Learn Spanish", "demo-area-learning", null, 12],
+    ];
+    for (const [id, name, area, goal, due] of projD)
+      await run("INSERT OR IGNORE INTO projects (id,name,description,status,progress,due_at,goal_id,area_id,created_at,updated_at,archived) VALUES ($1,$2,'','active',0,$3,$4,$5,$6,$7,0)", [id, name, ms(due), goal, area, ms(-25), ms(-1)]);
+
+    // Tasks: [id, title, status, priority, dueOffset|null, completedOffset|null, project]
+    const tasksD: [string, string, string, string, number | null, number | null, string][] = [
+      ["demo-task-1", "Draft homepage copy", "doing", "p2", 0, null, "demo-proj-website"],
+      ["demo-task-2", "Pick color palette", "done", "p3", -1, -1, "demo-proj-website"],
+      ["demo-task-3", "Set up analytics", "todo", "p3", 2, null, "demo-proj-website"],
+      ["demo-task-4", "Email the designer", "waiting", "p2", 1, null, "demo-proj-website"],
+      ["demo-task-5", "Buy running shoes", "todo", "p1", -1, null, "demo-proj-5k"],
+      ["demo-task-6", "Run 3km", "done", "p3", -2, -2, "demo-proj-5k"],
+      ["demo-task-7", "Spanish lesson 1", "done", "p3", -3, -3, "demo-proj-spanish"],
+      ["demo-task-8", "Spanish lesson 2", "todo", "p3", 0, null, "demo-proj-spanish"],
+      ["demo-task-9", "Weekly review", "done", "p2", -5, -5, "demo-proj-website"],
+      ["demo-task-10", "Stretch routine", "done", "p4", -7, -7, "demo-proj-5k"],
+      ["demo-task-11", "Outline about page", "done", "p3", -10, -10, "demo-proj-website"],
+      ["demo-task-12", "Morning run", "done", "p3", 0, 0, "demo-proj-5k"],
+    ];
+    let so = 0;
+    for (const [id, title, status, prio, due, done, proj] of tasksD)
+      await run("INSERT OR IGNORE INTO tasks (id,title,description,status,priority,due_at,completed_at,sort_order,project_id,goal_id,tags,created_at,updated_at,archived) VALUES ($1,$2,'',$3,$4,$5,$6,$7,$8,NULL,'',$9,$10,0)", [id, title, status, prio, due == null ? null : ms(due), done == null ? null : ms(done), so++, proj, ms(-20), ms(0)]);
+
+    // Notes
+    await run("INSERT OR IGNORE INTO notes (id,title,content,tags,pinned,created_at,updated_at,archived) VALUES ($1,$2,$3,$4,1,$5,$6,0)", ["demo-note-ideas", "Website ideas", "Talk to @Ana about the hero layout. Tie this to #Draft homepage copy.\n\n- Bolder type\n- Calmer palette", "design,web", ms(-4), ms(0)]);
+    await run("INSERT OR IGNORE INTO notes (id,title,content,tags,pinned,created_at,updated_at,archived) VALUES ($1,$2,$3,$4,0,$5,$6,0)", ["demo-note-reading", "Reading list", "# To read\n- Atomic Habits\n- Deep Work", "learning", ms(-2), ms(0)]);
+
+    // People (birthday MM-DD; Ana within ~8 days)
+    const anaBday = `1992-${key(8).slice(5)}`;
+    const benBday = `1988-${key(120).slice(5)}`;
+    await run("INSERT OR IGNORE INTO people (id,first_name,last_name,email,phone,avatar_url,birthday,notes,relationship_tags,last_interaction_at,created_at,updated_at,archived) VALUES ($1,'Ana','Costa','ana@example.com','',NULL,$2,'Designer, great taste','friend,design',$3,$4,$5,0)", ["demo-person-ana", anaBday, ms(-1), ms(-60), ms(-1)]);
+    await run("INSERT OR IGNORE INTO people (id,first_name,last_name,email,phone,avatar_url,birthday,notes,relationship_tags,last_interaction_at,created_at,updated_at,archived) VALUES ($1,'Ben','Hayes','ben@example.com','',NULL,$2,'Old colleague','work',$3,$4,$5,0)", ["demo-person-ben", benBday, ms(-45), ms(-90), ms(-45)]);
+
+    // Habits + completions
+    const habitsD: [string, string, string][] = [
+      ["demo-habit-meditate", "Meditate", "#34d399"],
+      ["demo-habit-read", "Read", "#38bdf8"],
+      ["demo-habit-workout", "Workout", "#fbbf24"],
+    ];
+    for (const [id, name, color] of habitsD)
+      await run("INSERT OR IGNORE INTO habits (id,name,frequency,target,color,goal_id,created_at,updated_at,archived) VALUES ($1,$2,'daily',1,$3,NULL,$4,$5,0)", [id, name, color, ms(-30), ms(0)]);
+    const addComp = async (habit: string, d: number) =>
+      run("INSERT OR IGNORE INTO habit_completions (id,habit_id,date,count,created_at) VALUES ($1,$2,$3,1,$4)", [`demo-hc-${habit}-${key(d)}`, habit, key(d), ms(d)]);
+    for (let d = -11; d <= 0; d++) await addComp("demo-habit-meditate", d); // 12-day streak
+    for (let d = -19; d <= 0; d++) if (d % 2 === 0) await addComp("demo-habit-read", d); // ~every other day
+    for (let d = -13; d <= 0; d++) if (d % 3 !== 0) await addComp("demo-habit-workout", d);
+
+    // Daily hubs (last 10 days) — OR IGNORE leaves a real today hub intact
+    const journals = ["Solid focus today.", "Bit tired but pushed through.", "Great run this morning.", "Deep work on the site.", "Caught up with Ana.", "Slow day, rested.", "Shipped the palette.", "Read before bed.", "Planned the week.", "Felt grateful."];
+    for (let d = -9; d <= 0; d++)
+      await run("INSERT OR IGNORE INTO daily_hubs (id,date,journal,mood,energy,wins,challenges,lessons,gratitude,created_at,updated_at) VALUES ($1,$2,$3,$4,$5,'','','','',$6,$7)", [`demo-hub-${key(d)}`, key(d), journals[d + 9] ?? "", 6 + ((d + 9) % 4), 5 + ((d + 9) % 5), ms(d), ms(d)]);
+
+    // Events (next week)
+    await run("INSERT OR IGNORE INTO events (id,title,description,start_at,end_at,all_day,location,created_at,updated_at,archived) VALUES ($1,'Design review','',$2,NULL,0,'Zoom',$3,$4,0)", ["demo-event-review", ms(2) , ms(-3), ms(-3)]);
+    await run("INSERT OR IGNORE INTO events (id,title,description,start_at,end_at,all_day,location,created_at,updated_at,archived) VALUES ($1,'Parkrun','',$2,NULL,0,'Park',$3,$4,0)", ["demo-event-parkrun", ms(5), ms(-3), ms(-3)]);
+
+    // Links (graph)
+    const linksD: [string, string, string, string, string, string][] = [
+      ["demo-link-1", "note", "demo-note-ideas", "person", "demo-person-ana", "mentioned_in"],
+      ["demo-link-2", "note", "demo-note-ideas", "task", "demo-task-1", "mentioned_in"],
+      ["demo-link-3", "project", "demo-proj-website", "person", "demo-person-ana", "related_to"],
+      ["demo-link-4", "project", "demo-proj-website", "person", "demo-person-ben", "related_to"],
+      ["demo-link-5", "project", "demo-proj-5k", "note", "demo-note-reading", "related_to"],
+    ];
+    for (const [id, st, si, tt, ti, rel] of linksD)
+      await run("INSERT OR IGNORE INTO links (id,source_type,source_id,target_type,target_id,relation_type,created_at) VALUES ($1,$2,$3,$4,$5,$6,$7)", [id, st, si, tt, ti, rel, ms(-3)]);
+
+    // Recompute project progress from the seeded tasks
+    for (const [pid] of projD) await projects.recomputeProgress(pid);
+  },
+
+  async clear(): Promise<void> {
+    const conn = await db();
+    const tables = ["tasks", "projects", "goals", "areas", "notes", "habits", "habit_completions", "events", "people", "people_dates", "daily_hubs", "notifications", "activity"];
+    for (const tbl of tables) await conn.execute(`DELETE FROM ${tbl} WHERE id LIKE 'demo-%'`);
+    await conn.execute("DELETE FROM links WHERE id LIKE 'demo-%' OR source_id LIKE 'demo-%' OR target_id LIKE 'demo-%'");
   },
 };
 

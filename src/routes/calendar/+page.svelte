@@ -1,18 +1,18 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import PageHeader from "$lib/components/PageHeader.svelte";
-  import { events as eventDb, tasks as taskDb, people as peopleDb } from "$lib/db";
+  import { events as eventDb, tasks as taskDb, people as peopleDb, projects as projectDb } from "$lib/db";
   import { isTauri } from "$lib/platform";
   import { todayKey, startOfDayMs, endOfDayMs } from "$lib/date";
   import { fullName } from "$lib/people";
-  import type { CalEvent, Task, Person } from "$lib/types";
+  import type { CalEvent, Task, Person, Project } from "$lib/types";
 
   const desktop = isTauri();
   type View = "month" | "week" | "agenda" | "day";
   const views: View[] = ["month", "week", "agenda", "day"];
 
-  interface Item { kind: "event" | "task" | "birthday"; id: string; title: string; at: number; }
-  const kindColor: Record<Item["kind"], string> = { event: "#38bdf8", task: "#fbbf24", birthday: "#f472b6" };
+  interface Item { kind: "event" | "task" | "birthday" | "project"; id: string; title: string; at: number; href?: string; }
+  const kindColor: Record<Item["kind"], string> = { event: "#38bdf8", task: "#fbbf24", birthday: "#f472b6", project: "#34d399" };
 
   let view = $state<View>("month");
   let anchor = $state(new Date());
@@ -21,6 +21,7 @@
   let events = $state<CalEvent[]>([]);
   let tasks = $state<Task[]>([]);
   let people = $state<Person[]>([]);
+  let projects = $state<Project[]>([]);
 
   // new event
   let evTitle = $state("");
@@ -61,10 +62,11 @@
       return;
     }
     loading = true;
-    [events, tasks, people] = await Promise.all([
+    [events, tasks, people, projects] = await Promise.all([
       eventDb.between(range.start, range.end),
       taskDb.listAll(),
       peopleDb.list(),
+      projectDb.listAll(),
     ]);
     loading = false;
   }
@@ -96,7 +98,10 @@
     const taskItems: Item[] = tasks
       .filter((t) => t.due_at != null && t.due_at >= range.start && t.due_at <= range.end)
       .map((t) => ({ kind: "task", id: t.id, title: t.title, at: t.due_at as number }));
-    return [...evItems, ...taskItems, ...birthdayItems()].sort((a, b) => a.at - b.at);
+    const projItems: Item[] = projects
+      .filter((p) => p.due_at != null && p.due_at >= range.start && p.due_at <= range.end)
+      .map((p) => ({ kind: "project", id: p.id, title: p.name, at: p.due_at as number, href: `/projects/${p.id}` }));
+    return [...evItems, ...taskItems, ...projItems, ...birthdayItems()].sort((a, b) => a.at - b.at);
   });
 
   function itemsOn(dayMs: number): Item[] {

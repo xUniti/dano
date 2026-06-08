@@ -30,12 +30,11 @@
       loading = true;
       const hs = await habitDb.list();
       const map: Record<string, Set<string>> = {};
-      await Promise.all(
-        hs.map(async (h) => {
-          const comps = await habitCompletions.forHabit(h.id);
-          map[h.id] = new Set(comps.map((c) => c.date));
-        }),
-      );
+      // Sequential (not Promise.all): concurrent SQLite reads can deadlock the plugin.
+      for (const h of hs) {
+        const comps = await habitCompletions.forHabit(h.id);
+        map[h.id] = new Set(comps.map((c) => c.date));
+      }
       habits = hs;
       sets = map;
       error = null;
@@ -82,6 +81,17 @@
       action: { label: "Undo", run: async () => { await restoreEntity("habit", h.id); await load(); } },
     });
   }
+
+  // Precompute per-habit stats (mirrors the Dashboard pattern) so the template
+  // has no inline function calls.
+  const rows = $derived(
+    habits.map((h) => {
+      const done = sets[h.id] ?? new Set<string>();
+      return { h, done, streak: streak(done), rate: completionRate(done), doneToday: done.has(key) };
+    }),
+  );
+
+  onMount(load);
 </script>
 
 <PageHeader title="Habits" subtitle="Streaks &amp; completion" />
@@ -113,32 +123,30 @@
       </div>
     {:else}
       <div class="space-y-3">
-        {#each habits as h (h.id)}
-          {@const done = sets[h.id] ?? new Set()}
-          {@const doneToday = done.has(key)}
+        {#each rows as r (r.h.id)}
           <div class="rounded-2xl border border-fg/10 bg-fg/[0.02] p-4">
             <div class="flex items-center gap-3">
               <button
                 type="button"
-                onclick={() => toggle(h, key)}
+                onclick={() => toggle(r.h, key)}
                 aria-label="Toggle today"
-                class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border transition-colors {doneToday ? 'border-transparent text-fg' : 'border-fg/20 text-fg/40 hover:border-fg/40'}"
-                style={doneToday ? `background:${h.color ?? "#34d399"}` : ""}
+                class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border transition-colors {r.doneToday ? 'border-transparent text-fg' : 'border-fg/20 text-fg/40 hover:border-fg/40'}"
+                style={r.doneToday ? `background:${r.h.color ?? "#34d399"}` : ""}
               >
                 ✓
               </button>
 
               <div class="min-w-0 flex-1">
-                {#if editingId === h.id}
+                {#if editingId === r.h.id}
                   <!-- svelte-ignore a11y_autofocus -->
                   <input bind:value={editName} autofocus onblur={commitRename} onkeydown={(e) => e.key === "Enter" && commitRename()} class="rounded bg-fg/10 px-1.5 py-0.5 text-sm outline-none" />
                 {:else}
-                  <button type="button" ondblclick={() => ((editingId = h.id), (editName = h.name))} class="block truncate text-left text-sm font-medium text-fg/90">{h.name}</button>
+                  <button type="button" ondblclick={() => ((editingId = r.h.id), (editName = r.h.name))} class="block truncate text-left text-sm font-medium text-fg/90">{r.h.name}</button>
                 {/if}
                 <div class="mt-0.5 flex items-center gap-3 text-[11px] text-fg/40">
-                  <span>🔥 {streak(done)}d streak</span>
-                  <span>{completionRate(done)}% / 30d</span>
-                  <select value={h.frequency} onchange={(e) => setFreq(h, (e.currentTarget as HTMLSelectElement).value as HabitFrequency)} class="rounded bg-fg/5 px-1 py-0.5 text-[11px] text-fg/55 outline-none">
+                  <span>🔥 {r.streak}d streak</span>
+                  <span>{r.rate}% / 30d</span>
+                  <select value={r.h.frequency} onchange={(e) => setFreq(r.h, (e.currentTarget as HTMLSelectElement).value as HabitFrequency)} class="rounded bg-fg/5 px-1 py-0.5 text-[11px] text-fg/55 outline-none">
                     <option value="daily">daily</option>
                     <option value="weekly">weekly</option>
                     <option value="custom">custom</option>
@@ -149,11 +157,11 @@
               <!-- color -->
               <div class="hidden items-center gap-1 sm:flex">
                 {#each palette as c (c)}
-                  <button type="button" onclick={() => setColor(h, c)} aria-label="color" class="h-3.5 w-3.5 rounded-full {h.color === c ? 'ring-2 ring-fg/70' : ''}" style="background:{c}"></button>
+                  <button type="button" onclick={() => setColor(r.h, c)} aria-label="color" class="h-3.5 w-3.5 rounded-full {r.h.color === c ? 'ring-2 ring-fg/70' : ''}" style="background:{c}"></button>
                 {/each}
               </div>
 
-              <button type="button" onclick={() => remove(h)} class="shrink-0 rounded px-2 py-1 text-[11px] text-fg/35 hover:text-amber-300">Archive</button>
+              <button type="button" onclick={() => remove(r.h)} class="shrink-0 rounded px-2 py-1 text-[11px] text-fg/35 hover:text-amber-300">Archive</button>
             </div>
 
             <!-- 14-day heatmap -->
@@ -161,11 +169,11 @@
               {#each days as d (d)}
                 <button
                   type="button"
-                  onclick={() => toggle(h, d)}
+                  onclick={() => toggle(r.h, d)}
                   title={d}
                   aria-label={d}
-                  class="h-5 flex-1 rounded {done.has(d) ? '' : 'bg-fg/8 hover:bg-fg/15'}"
-                  style={done.has(d) ? `background:${h.color ?? "#34d399"}` : ""}
+                  class="h-5 flex-1 rounded {r.done.has(d) ? '' : 'bg-fg/8 hover:bg-fg/15'}"
+                  style={r.done.has(d) ? `background:${r.h.color ?? "#34d399"}` : ""}
                 ></button>
               {/each}
             </div>

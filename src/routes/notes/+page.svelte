@@ -49,6 +49,8 @@
     selectedId = n.id;
     await load();
   }
+
+  onMount(load);
 </script>
 
 {#if !desktop}
