@@ -27,7 +27,5 @@
   </g>
 
   <!-- Monospace D -->
-  <text x="120" y="121" text-anchor="middle" dominant-baseline="central"
-        font-family="'JetBrains Mono','SFMono-Regular','SF Mono','Cascadia Code','Fira Code',ui-monospace,Menlo,Consolas,monospace"
-        font-size="78" font-weight="700" fill="#d6dae0">D</text>
+  <text x="120" y="121" text-anchor="middle" dominant-baseline="central" font-family="'JetBrains Mono','SFMono-Regular','SF Mono','Cascadia Code','Fira Code',ui-monospace,Menlo,Consolas,monospace" font-size="78" font-weight="700" fill="#d6dae0">D</text>
 </svg>

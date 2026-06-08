@@ -6,13 +6,10 @@
   "permissions": [
     "core:default",
     "opener:default",
+    "sql:default",
     "sql:allow-load",
     "sql:allow-execute",
     "sql:allow-select",
-    "sql:allow-close",
-    "dialog:allow-save",
-    "dialog:allow-open",
-    "fs:allow-write-text-file",
-    "fs:allow-read-text-file"
+    "sql:allow-close"
   ]
 }

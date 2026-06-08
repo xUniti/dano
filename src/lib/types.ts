@@ -1,125 +1,193 @@
-// DANO core types — hierarchical PARA
+// DANO domain types — mirror the SQLite schema in src-tauri/src/lib.rs.
+// Timestamps are ms-since-epoch (INTEGER). Calendar days are 'YYYY-MM-DD' strings.
+// Booleans are stored as 0 | 1.
 
-export type ProjectStatus = "planned" | "in_progress" | "ongoing" | "done";
-export type ProjectPriority = "low" | "medium" | "high";
-export type TaskStatus = "todo" | "done";
+export type Bool = 0 | 1;
 
-// Areas are life domains; they hold projects.
+export type GoalStatus = "active" | "paused" | "completed";
+export type ProjectStatus = "active" | "planned" | "completed" | "archived";
+export type TaskStatus = "todo" | "doing" | "waiting" | "done";
+export type TaskPriority = "p1" | "p2" | "p3" | "p4";
+export type HabitFrequency = "daily" | "weekly" | "custom";
+
+// Entity kinds usable in the universal graph (`links`) and as link targets.
+export type EntityType =
+  | "area"
+  | "goal"
+  | "project"
+  | "task"
+  | "note"
+  | "habit"
+  | "event"
+  | "person"
+  | "daily_hub";
+
+export type RelationType =
+  | "mentioned_in"
+  | "related_to"
+  | "belongs_to"
+  | "follows"
+  | "depends_on";
+
 export interface Area {
   id: string;
   name: string;
-  archived: number; // 0 | 1
+  color: string | null;
   created_at: number;
   updated_at: number;
+  archived: Bool;
 }
 
-// Projects live inside an area, have a status and an optional deadline.
+export interface Goal {
+  id: string;
+  title: string;
+  description: string;
+  status: GoalStatus;
+  created_at: number;
+  updated_at: number;
+  archived: Bool;
+}
+
 export interface Project {
   id: string;
   name: string;
-  area_id: string;
-  status: ProjectStatus;
-  priority: ProjectPriority;
   description: string;
+  status: ProjectStatus;
+  progress: number; // 0..100, auto-computed from tasks
   due_at: number | null;
-  pinned: number; // 0 | 1
-  archived: number;
+  goal_id: string | null;
+  area_id: string; // mandatory
   created_at: number;
   updated_at: number;
+  archived: Bool;
 }
 
-// Tasks live inside a project. Simple and actionable.
 export interface Task {
   id: string;
   title: string;
-  project_id: string;
+  description: string;
   status: TaskStatus;
+  priority: TaskPriority;
   due_at: number | null;
+  completed_at: number | null;
   sort_order: number;
-  archived: number;
+  project_id: string | null;
+  goal_id: string | null;
+  tags: string; // comma-separated
   created_at: number;
   updated_at: number;
+  archived: Bool;
 }
 
-// Resources (= notes) are standalone Markdown items, linked to many targets.
-export interface Resource {
+export interface Note {
   id: string;
   title: string;
   content: string;
-  tags: string; // comma-separated tag list
-  pinned: number; // 0 | 1
-  archived: number;
+  tags: string;
+  pinned: Bool;
   created_at: number;
   updated_at: number;
+  archived: Bool;
 }
 
-export type LinkTargetType = "area" | "project" | "task" | "contact";
-
-export interface ResourceLink {
+export interface Habit {
   id: string;
-  resource_id: string;
-  target_type: LinkTargetType;
-  target_id: string;
+  name: string;
+  frequency: HabitFrequency;
+  target: number;
+  color: string | null;
+  goal_id: string | null;
+  created_at: number;
+  updated_at: number;
+  archived: Bool;
+}
+
+export interface HabitCompletion {
+  id: string;
+  habit_id: string;
+  date: string; // YYYY-MM-DD
+  count: number;
   created_at: number;
 }
 
-// Convenience shapes for the dashboard.
-export interface UpcomingItem {
-  kind: "project" | "task";
-  id: string;
-  title: string;
-  due_at: number;
-  context: string; // area name, or "area / project"
-}
-
-// Standalone calendar events (not tied to a project/task).
 export interface CalEvent {
   id: string;
   title: string;
+  description: string;
   start_at: number;
   end_at: number | null;
-  all_day: number; // 0 | 1
+  all_day: Bool;
+  location: string;
+  created_at: number;
+  updated_at: number;
+  archived: Bool;
+}
+
+export interface Person {
+  id: string;
+  first_name: string;
+  last_name: string;
+  email: string;
+  phone: string;
+  avatar_url: string | null;
+  birthday: string | null; // YYYY-MM-DD
   notes: string;
-  archived: number;
+  relationship_tags: string;
+  last_interaction_at: number | null;
+  created_at: number;
+  updated_at: number;
+  archived: Bool;
+}
+
+export interface PersonDate {
+  id: string;
+  person_id: string;
+  label: string;
+  date: string; // YYYY-MM-DD
+  recurring: Bool;
+  created_at: number;
+}
+
+export interface DailyHub {
+  id: string;
+  date: string; // YYYY-MM-DD, unique
+  journal: string;
+  mood: number | null; // 1..10
+  energy: number | null; // 1..10
+  wins: string;
+  challenges: string;
+  lessons: string;
+  gratitude: string;
   created_at: number;
   updated_at: number;
 }
 
-// Unified item placed on a calendar day.
-export interface CalItem {
-  kind: "event" | "project" | "task" | "contactdate";
+export interface Link {
   id: string;
+  source_type: EntityType;
+  source_id: string;
+  target_type: EntityType;
+  target_id: string;
+  relation_type: RelationType;
+  created_at: number;
+}
+
+export interface Notification {
+  id: string;
+  type: string;
   title: string;
-  at: number; // the day it sits on (start_at or due_at or recurring occurrence)
-  context: string;
-  areaId?: string; // for projects/tasks, to enable click-through
-  contactId?: string; // for contact dates, to open the contact
-}
-
-// CRM
-export interface Contact {
-  id: string;
-  name: string;
-  notes: string;
-  archived: number;
-  created_at: number;
-  updated_at: number;
-}
-
-export interface ContactDate {
-  id: string;
-  contact_id: string;
-  label: string; // "Birthday", "Anniversary", …
-  date_at: number;
-  recurring: number; // 0 | 1 (annual)
+  body: string;
+  entity_type: string | null;
+  entity_id: string | null;
+  read: Bool;
   created_at: number;
 }
 
-// Activity log entry (project-scoped audit trail).
 export interface Activity {
   id: string;
-  project_id: string | null;
-  kind: string; // 'project_created' | 'task_completed' | 'note_added' | 'deadline_updated' | 'status_changed' | 'priority_changed'
+  entity_type: string | null;
+  entity_id: string | null;
+  kind: string;
   title: string;
   detail: string;
   created_at: number;

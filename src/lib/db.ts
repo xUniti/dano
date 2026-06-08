@@ -1,879 +1,517 @@
-// DANO storage layer — hierarchical PARA + Resources (Phase B).
-// Native SQLite via tauri-plugin-sql. All SQL is isolated in this module.
+// DANO data layer — the ONLY place that talks SQL.
+// Local SQLite today (tauri-plugin-sql); this module is the seam where a future
+// Supabase/cloud adapter plugs in. Schema source of truth: src-tauri/src/lib.rs.
 
 import Database from "@tauri-apps/plugin-sql";
 import type {
-  Area,
   Activity,
-  LinkTargetType,
+  Area,
+  CalEvent,
+  DailyHub,
+  EntityType,
+  Goal,
+  Habit,
+  HabitCompletion,
+  Note,
+  Notification,
+  Person,
+  PersonDate,
   Project,
-  ProjectStatus,
-  Resource,
   Task,
-  TaskStatus,
 } from "./types";
 
 let _db: Database | null = null;
-async function db(): Promise<Database> {
-  if (!_db) _db = await Database.load("sqlite:dano.db");
+/** Lazily open the database; the first load runs pending migrations (Rust side). */
+export async function db(): Promise<Database> {
+  if (!_db) _db = await Database.load("sqlite:dano_v1.db");
   return _db;
 }
-const now = () => Date.now();
 
-function setClause(patch: Record<string, unknown>) {
-  const fields: string[] = [];
-  const values: unknown[] = [];
-  let i = 1;
-  for (const [k, v] of Object.entries(patch)) {
-    fields.push(`${k} = $${i++}`);
-    values.push(v);
-  }
-  return { clause: fields.join(", "), values, next: i };
-}
+export const now = (): number => Date.now();
+export const uid = (): string => crypto.randomUUID();
 
-/* ---------- Areas ---------- */
-
-export async function listAreas(archived = false): Promise<Area[]> {
+/** Generic insert from a column→value map. */
+async function insert(table: string, row: object): Promise<void> {
+  const r = row as Record<string, unknown>;
+  const keys = Object.keys(r);
+  const cols = keys.join(", ");
+  const ph = keys.map((_, i) => `$${i + 1}`).join(", ");
   const conn = await db();
-  return conn.select<Area[]>(
-    "SELECT * FROM areas WHERE archived = $1 ORDER BY updated_at DESC",
-    [archived ? 1 : 0],
-  );
-}
-export async function createArea(name: string): Promise<Area> {
-  const conn = await db();
-  const t = now();
-  const area: Area = { id: crypto.randomUUID(), name, archived: 0, created_at: t, updated_at: t };
   await conn.execute(
-    "INSERT INTO areas (id, name, archived, created_at, updated_at) VALUES ($1,$2,$3,$4,$5)",
-    [area.id, area.name, area.archived, area.created_at, area.updated_at],
+    `INSERT INTO ${table} (${cols}) VALUES (${ph})`,
+    keys.map((k) => r[k]),
   );
-  return area;
-}
-export async function updateArea(id: string, patch: Partial<Pick<Area, "name" | "archived">>): Promise<void> {
-  const conn = await db();
-  const { clause, values, next } = setClause(patch);
-  if (!clause) return;
-  values.push(now(), id);
-  await conn.execute(`UPDATE areas SET ${clause}, updated_at = $${next} WHERE id = $${next + 1}`, values);
-}
-export async function deleteArea(id: string): Promise<void> {
-  const conn = await db();
-  await conn.execute("DELETE FROM tasks WHERE project_id IN (SELECT id FROM projects WHERE area_id = $1)", [id]);
-  await conn.execute("DELETE FROM projects WHERE area_id = $1", [id]);
-  await conn.execute("DELETE FROM resource_links WHERE target_type = 'area' AND target_id = $1", [id]);
-  await conn.execute("DELETE FROM areas WHERE id = $1", [id]);
 }
 
-/* ---------- Projects ---------- */
-
-export async function listProjects(areaId: string, archived = false): Promise<Project[]> {
+/** Generic patch for tables that have an `updated_at` column. */
+async function patch(table: string, id: string, fields: object): Promise<void> {
+  const f = fields as Record<string, unknown>;
+  const keys = Object.keys(f);
+  if (keys.length === 0) return;
+  const sets = keys.map((k, i) => `${k} = $${i + 1}`).join(", ");
   const conn = await db();
-  return conn.select<Project[]>(
-    "SELECT * FROM projects WHERE area_id = $1 AND archived = $2 ORDER BY (status = 'done') ASC, updated_at DESC",
-    [areaId, archived ? 1 : 0],
+  await conn.execute(
+    `UPDATE ${table} SET ${sets}, updated_at = $${keys.length + 1} WHERE id = $${keys.length + 2}`,
+    [...keys.map((k) => f[k]), now(), id],
   );
 }
-export async function getProject(id: string): Promise<(Project & { area_name: string }) | null> {
+
+async function selectOne<T>(sql: string, args: unknown[]): Promise<T | null> {
   const conn = await db();
-  const rows = await conn.select<(Project & { area_name: string })[]>(
-    `SELECT p.*, a.name AS area_name FROM projects p JOIN areas a ON a.id = p.area_id WHERE p.id = $1`,
-    [id],
-  );
+  const rows = await conn.select<T[]>(sql, args);
   return rows[0] ?? null;
 }
-export async function createProject(areaId: string, name: string): Promise<Project> {
+
+async function removeRow(table: string, id: string): Promise<void> {
   const conn = await db();
-  const t = now();
-  const p: Project = {
-    id: crypto.randomUUID(), name, area_id: areaId, status: "in_progress",
-    priority: "medium", description: "", due_at: null, pinned: 0, archived: 0, created_at: t, updated_at: t,
-  };
-  await conn.execute(
-    "INSERT INTO projects (id, name, area_id, status, priority, description, due_at, pinned, archived, created_at, updated_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)",
-    [p.id, p.name, p.area_id, p.status, p.priority, p.description, p.due_at, p.pinned, p.archived, p.created_at, p.updated_at],
-  );
-  return p;
-}
-export async function updateProject(id: string, patch: Partial<Pick<Project, "name" | "status" | "priority" | "description" | "due_at" | "pinned" | "archived">>): Promise<void> {
-  const conn = await db();
-  const { clause, values, next } = setClause(patch);
-  if (!clause) return;
-  values.push(now(), id);
-  await conn.execute(`UPDATE projects SET ${clause}, updated_at = $${next} WHERE id = $${next + 1}`, values);
-}
-export async function deleteProject(id: string): Promise<void> {
-  const conn = await db();
-  await conn.execute("DELETE FROM tasks WHERE project_id = $1", [id]);
-  await conn.execute("DELETE FROM resource_links WHERE target_type = 'project' AND target_id = $1", [id]);
-  await conn.execute("DELETE FROM projects WHERE id = $1", [id]);
-}
-export async function listArchivedProjects(): Promise<(Project & { area_name: string })[]> {
-  const conn = await db();
-  return conn.select(
-    `SELECT p.*, a.name AS area_name FROM projects p JOIN areas a ON a.id = p.area_id
-      WHERE p.archived = 1 ORDER BY p.updated_at DESC`,
-  );
-}
-export async function listAllProjects(): Promise<{ id: string; name: string; area_name: string }[]> {
-  const conn = await db();
-  return conn.select(
-    `SELECT p.id AS id, p.name AS name, a.name AS area_name FROM projects p JOIN areas a ON a.id = p.area_id
-      WHERE p.archived = 0 ORDER BY a.name, p.name`,
-  );
-}
-// Full project rows + area name, for the Projects browse view.
-export async function listProjectsAll(): Promise<(Project & { area_name: string })[]> {
-  const conn = await db();
-  return conn.select(
-    `SELECT p.*, a.name AS area_name FROM projects p JOIN areas a ON a.id = p.area_id
-      WHERE p.archived = 0 ORDER BY p.pinned DESC, (p.status = 'done') ASC, p.due_at IS NULL, p.due_at ASC, p.updated_at DESC`,
-  );
-}
-// All non-archived tasks with their area + project (for the Areas overview).
-export async function allAreaTasks(): Promise<(Task & { area_id: string; project_name: string })[]> {
-  const conn = await db();
-  return conn.select(
-    `SELECT t.*, p.area_id AS area_id, p.name AS project_name
-       FROM tasks t JOIN projects p ON p.id = t.project_id
-      WHERE t.archived = 0
-      ORDER BY (t.status = 'done') ASC, t.due_at IS NULL, t.due_at ASC, t.updated_at DESC`,
-  );
+  await conn.execute(`DELETE FROM ${table} WHERE id = $1`, [id]);
 }
 
-/* ---------- Tasks ---------- */
+/* ----------------------------------------------------------------- Areas */
 
-export async function listTasks(projectId: string, archived = false): Promise<Task[]> {
-  const conn = await db();
-  return conn.select<Task[]>(
-    "SELECT * FROM tasks WHERE project_id = $1 AND archived = $2 ORDER BY (status = 'done') ASC, sort_order ASC, created_at ASC",
-    [projectId, archived ? 1 : 0],
-  );
-}
-export async function createTask(projectId: string, title: string): Promise<Task> {
-  const conn = await db();
-  const t = now();
-  // Place new tasks at the end (max sort_order + 1 within the project).
-  const mx = await conn.select<{ m: number | null }[]>(
-    "SELECT MAX(sort_order) AS m FROM tasks WHERE project_id = $1", [projectId],
-  );
-  const sort_order = (mx[0]?.m ?? 0) + 1;
-  const task: Task = { id: crypto.randomUUID(), title, project_id: projectId, status: "todo", due_at: null, sort_order, archived: 0, created_at: t, updated_at: t };
-  await conn.execute(
-    "INSERT INTO tasks (id, title, project_id, status, due_at, sort_order, archived, created_at, updated_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)",
-    [task.id, task.title, task.project_id, task.status, task.due_at, task.sort_order, task.archived, task.created_at, task.updated_at],
-  );
-  return task;
-}
-export async function updateTask(id: string, patch: Partial<Pick<Task, "title" | "status" | "due_at" | "sort_order" | "archived">>): Promise<void> {
-  const conn = await db();
-  const { clause, values, next } = setClause(patch);
-  if (!clause) return;
-  values.push(now(), id);
-  await conn.execute("UPDATE tasks SET " + clause + ", updated_at = $" + next + " WHERE id = $" + (next + 1), values);
-}
-// Persist a new ordering for a set of task ids (index = sort_order).
-export async function reorderTasks(ids: string[]): Promise<void> {
-  const conn = await db();
-  for (let i = 0; i < ids.length; i++) {
-    await conn.execute("UPDATE tasks SET sort_order = $1 WHERE id = $2", [i, ids[i]]);
-  }
-}
-export async function deleteTask(id: string): Promise<void> {
-  const conn = await db();
-  await conn.execute("DELETE FROM resource_links WHERE target_type = 'task' AND target_id = $1", [id]);
-  await conn.execute("DELETE FROM tasks WHERE id = $1", [id]);
-}
-export async function listAllTasks(): Promise<{ id: string; title: string; context: string }[]> {
-  const conn = await db();
-  return conn.select(
-    `SELECT t.id AS id, t.title AS title, a.name || ' / ' || p.name AS context
-       FROM tasks t JOIN projects p ON p.id = t.project_id JOIN areas a ON a.id = p.area_id
-      WHERE t.archived = 0 ORDER BY context, t.title`,
-  );
-}
-// All tasks across an area's projects (for the Area view).
-export async function listAreaTasks(areaId: string): Promise<(Task & { project_name: string })[]> {
-  const conn = await db();
-  return conn.select(
-    `SELECT t.*, p.name AS project_name FROM tasks t JOIN projects p ON p.id = t.project_id
-      WHERE p.area_id = $1 AND t.archived = 0
-      ORDER BY t.status ASC, t.due_at IS NULL, t.due_at ASC, t.updated_at DESC`,
-    [areaId],
-  );
-}
+export const areas = {
+  async list(archived = false): Promise<Area[]> {
+    const conn = await db();
+    return conn.select<Area[]>(
+      "SELECT * FROM areas WHERE archived = $1 ORDER BY name COLLATE NOCASE",
+      [archived ? 1 : 0],
+    );
+  },
+  get: (id: string) => selectOne<Area>("SELECT * FROM areas WHERE id = $1", [id]),
+  async create(name: string, color: string | null = null): Promise<Area> {
+    const t = now();
+    const row: Area = { id: uid(), name, color, created_at: t, updated_at: t, archived: 0 };
+    await insert("areas", row);
+    return row;
+  },
+  update: (id: string, p: Partial<Pick<Area, "name" | "color" | "archived">>) =>
+    patch("areas", id, p),
+  /** Delete an area and its projects' tasks + projects (explicit, not relying on FK cascade). */
+  async remove(id: string): Promise<void> {
+    const conn = await db();
+    await conn.execute(
+      "DELETE FROM tasks WHERE project_id IN (SELECT id FROM projects WHERE area_id = $1)",
+      [id],
+    );
+    await conn.execute("DELETE FROM projects WHERE area_id = $1", [id]);
+    await conn.execute("DELETE FROM areas WHERE id = $1", [id]);
+  },
+};
 
-/* ---------- Projects browse: per-project preview bundles ---------- */
+/* ----------------------------------------------------------------- Goals */
 
-export interface ProjectPreview {
-  project: Project & { area_name: string };
-  tasks: Task[];          // up to a few, open first
-  notes: Resource[];      // linked notes, recent first
-  contacts: { id: string; name: string }[];
-  taskCounts: { done: number; total: number };
-}
-
-// One bundle per non-archived project, with a small preview of tasks/notes/contacts.
-// Done in a few batched queries (no N+1): fetch all rows, then group in JS.
-export async function listProjectsWithPreview(taskLimit = 4, noteLimit = 3): Promise<ProjectPreview[]> {
-  const conn = await db();
-  const projects = await conn.select<(Project & { area_name: string })[]>(
-    `SELECT p.*, a.name AS area_name FROM projects p JOIN areas a ON a.id = p.area_id
-      WHERE p.archived = 0
-      ORDER BY p.pinned DESC, (p.status = 'done') ASC, p.due_at IS NULL, p.due_at ASC, p.updated_at DESC`,
-  );
-  if (projects.length === 0) return [];
-
-  const tasks = await conn.select<Task[]>(
-    `SELECT t.* FROM tasks t JOIN projects p ON p.id = t.project_id
-      WHERE p.archived = 0 AND t.archived = 0
-      ORDER BY (t.status = 'done') ASC, t.due_at IS NULL, t.due_at ASC, t.updated_at DESC`,
-  );
-  const notes = await conn.select<(Resource & { project_id: string })[]>(
-    `SELECT r.*, l.target_id AS project_id FROM resources r
-       JOIN resource_links l ON l.resource_id = r.id
-      WHERE r.archived = 0 AND l.target_type = 'project'
-      ORDER BY r.updated_at DESC`,
-  );
-  const contacts = await conn.select<{ project_id: string; id: string; name: string }[]>(
-    `SELECT l.project_id AS project_id, c.id AS id, c.name AS name
-       FROM contact_links l JOIN contacts c ON c.id = l.contact_id
-      WHERE c.archived = 0 ORDER BY c.name COLLATE NOCASE ASC`,
-  );
-
-  const byProjTasks = new Map<string, Task[]>();
-  const counts = new Map<string, { done: number; total: number }>();
-  for (const t of tasks) {
-    const arr = byProjTasks.get(t.project_id) ?? [];
-    arr.push(t);
-    byProjTasks.set(t.project_id, arr);
-    const c = counts.get(t.project_id) ?? { done: 0, total: 0 };
-    c.total += 1;
-    if (t.status === "done") c.done += 1;
-    counts.set(t.project_id, c);
-  }
-  const byProjNotes = new Map<string, Resource[]>();
-  for (const n of notes) {
-    const arr = byProjNotes.get(n.project_id) ?? [];
-    arr.push(n);
-    byProjNotes.set(n.project_id, arr);
-  }
-  const byProjContacts = new Map<string, { id: string; name: string }[]>();
-  for (const c of contacts) {
-    const arr = byProjContacts.get(c.project_id) ?? [];
-    arr.push({ id: c.id, name: c.name });
-    byProjContacts.set(c.project_id, arr);
-  }
-
-  return projects.map((project) => ({
-    project,
-    tasks: (byProjTasks.get(project.id) ?? []).slice(0, taskLimit),
-    notes: (byProjNotes.get(project.id) ?? []).slice(0, noteLimit),
-    contacts: byProjContacts.get(project.id) ?? [],
-    taskCounts: counts.get(project.id) ?? { done: 0, total: 0 },
-  }));
-}
-
-/* ---------- Resources (= notes) ---------- */
-
-export async function getResource(id: string): Promise<Resource | null> {
-  const conn = await db();
-  const rows = await conn.select<Resource[]>("SELECT * FROM resources WHERE id = $1", [id]);
-  return rows[0] ?? null;
-}
-export async function listResources(archived = false): Promise<Resource[]> {
-  const conn = await db();
-  return conn.select<Resource[]>(
-    "SELECT * FROM resources WHERE archived = $1 ORDER BY updated_at DESC",
-    [archived ? 1 : 0],
-  );
-}
-// Inbox = resources with no links and not archived (unprocessed captures).
-export async function listInboxResources(): Promise<Resource[]> {
-  const conn = await db();
-  return conn.select<Resource[]>(
-    `SELECT * FROM resources r
-      WHERE r.archived = 0
-        AND NOT EXISTS (SELECT 1 FROM resource_links l WHERE l.resource_id = r.id)
-      ORDER BY r.updated_at DESC`,
-  );
-}
-export async function listResourcesForTarget(type: LinkTargetType, targetId: string): Promise<Resource[]> {
-  const conn = await db();
-  return conn.select<Resource[]>(
-    `SELECT r.* FROM resources r
-       JOIN resource_links l ON l.resource_id = r.id
-      WHERE r.archived = 0 AND l.target_type = $1 AND l.target_id = $2
-      ORDER BY r.updated_at DESC`,
-    [type, targetId],
-  );
-}
-
-// Resources (non-archived) with a context label + the set of area ids each
-// relates to (directly, or via a linked project/task). For the table view.
-export interface ResourceRow {
-  id: string;
-  title: string;
-  content: string;
-  tags: string;
-  pinned: number;
-  updated_at: number;
-  context: string;     // e.g. "Website Redesign" / "Health & Fitness +1" / "Inbox"
-  areaIds: string[];   // areas this resource relates to (for filtering)
-  linkCount: number;
-}
-export async function listResourcesWithContext(): Promise<ResourceRow[]> {
-  const conn = await db();
-  const resources = await conn.select<Resource[]>(
-    "SELECT * FROM resources WHERE archived = 0 ORDER BY pinned DESC, updated_at DESC",
-  );
-  const links = await conn.select<
-    { resource_id: string; target_type: LinkTargetType; label: string | null; area_id: string | null }[]
-  >(
-    `SELECT l.resource_id AS resource_id, l.target_type AS target_type,
-            CASE l.target_type
-              WHEN 'area' THEN (SELECT name FROM areas WHERE id = l.target_id)
-              WHEN 'project' THEN (SELECT name FROM projects WHERE id = l.target_id)
-              WHEN 'task' THEN (SELECT title FROM tasks WHERE id = l.target_id)
-              WHEN 'contact' THEN (SELECT name FROM contacts WHERE id = l.target_id)
-            END AS label,
-            CASE l.target_type
-              WHEN 'area' THEN l.target_id
-              WHEN 'project' THEN (SELECT area_id FROM projects WHERE id = l.target_id)
-              WHEN 'task' THEN (SELECT p.area_id FROM projects p JOIN tasks t ON t.project_id = p.id WHERE t.id = l.target_id)
-              ELSE NULL
-            END AS area_id
-       FROM resource_links l`,
-  );
-  const byRes = new Map<string, { labels: string[]; areas: Set<string> }>();
-  for (const l of links) {
-    const e = byRes.get(l.resource_id) ?? { labels: [], areas: new Set<string>() };
-    if (l.label) e.labels.push(l.label);
-    if (l.area_id) e.areas.add(l.area_id);
-    byRes.set(l.resource_id, e);
-  }
-  return resources.map((r) => {
-    const e = byRes.get(r.id);
-    const labels = e?.labels ?? [];
-    let context = "Inbox";
-    if (labels.length === 1) context = labels[0];
-    else if (labels.length > 1) context = labels[0] + " +" + (labels.length - 1);
-    return {
-      id: r.id, title: r.title, content: r.content, tags: r.tags ?? "", pinned: r.pinned ?? 0,
-      updated_at: r.updated_at, context, areaIds: [...(e?.areas ?? [])], linkCount: labels.length,
+export const goals = {
+  async list(archived = false): Promise<Goal[]> {
+    const conn = await db();
+    return conn.select<Goal[]>(
+      "SELECT * FROM goals WHERE archived = $1 ORDER BY updated_at DESC",
+      [archived ? 1 : 0],
+    );
+  },
+  get: (id: string) => selectOne<Goal>("SELECT * FROM goals WHERE id = $1", [id]),
+  async create(title: string): Promise<Goal> {
+    const t = now();
+    const row: Goal = {
+      id: uid(), title, description: "", status: "active",
+      created_at: t, updated_at: t, archived: 0,
     };
-  });
-}
-export async function createResource(title = "", content = ""): Promise<Resource> {
-  const conn = await db();
-  const t = now();
-  const r: Resource = { id: crypto.randomUUID(), title, content, tags: "", pinned: 0, archived: 0, created_at: t, updated_at: t };
-  await conn.execute(
-    "INSERT INTO resources (id, title, content, tags, pinned, archived, created_at, updated_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8)",
-    [r.id, r.title, r.content, r.tags, r.pinned, r.archived, r.created_at, r.updated_at],
-  );
-  return r;
-}
-export async function updateResource(id: string, patch: Partial<Pick<Resource, "title" | "content" | "tags" | "pinned" | "archived">>): Promise<void> {
-  const conn = await db();
-  const { clause, values, next } = setClause(patch);
-  if (!clause) return;
-  values.push(now(), id);
-  await conn.execute("UPDATE resources SET " + clause + ", updated_at = $" + next + " WHERE id = $" + (next + 1), values);
-}
-export async function deleteResource(id: string): Promise<void> {
-  const conn = await db();
-  await conn.execute("DELETE FROM resource_links WHERE resource_id = $1", [id]);
-  await conn.execute("DELETE FROM resources WHERE id = $1", [id]);
-}
+    await insert("goals", row);
+    return row;
+  },
+  update: (id: string, p: Partial<Pick<Goal, "title" | "description" | "status" | "archived">>) =>
+    patch("goals", id, p),
+  remove: (id: string) => removeRow("goals", id),
+};
 
-/* ---------- Resource links (many-to-many) ---------- */
+/* -------------------------------------------------------------- Projects */
 
-export interface DetailedLink {
-  id: string;
-  target_type: LinkTargetType;
-  target_id: string;
-  label: string;
-}
+export const projects = {
+  async listByArea(areaId: string, archived = false): Promise<Project[]> {
+    const conn = await db();
+    return conn.select<Project[]>(
+      "SELECT * FROM projects WHERE area_id = $1 AND archived = $2 ORDER BY updated_at DESC",
+      [areaId, archived ? 1 : 0],
+    );
+  },
+  async listActive(): Promise<Project[]> {
+    const conn = await db();
+    return conn.select<Project[]>(
+      "SELECT * FROM projects WHERE archived = 0 AND status = 'active' ORDER BY updated_at DESC",
+    );
+  },
+  async listAll(archived = false): Promise<Project[]> {
+    const conn = await db();
+    return conn.select<Project[]>(
+      "SELECT * FROM projects WHERE archived = $1 ORDER BY name COLLATE NOCASE",
+      [archived ? 1 : 0],
+    );
+  },
+  get: (id: string) => selectOne<Project>("SELECT * FROM projects WHERE id = $1", [id]),
+  async create(areaId: string, name: string): Promise<Project> {
+    const t = now();
+    const row: Project = {
+      id: uid(), name, description: "", status: "active", progress: 0,
+      due_at: null, goal_id: null, area_id: areaId, created_at: t, updated_at: t, archived: 0,
+    };
+    await insert("projects", row);
+    return row;
+  },
+  update: (
+    id: string,
+    p: Partial<Pick<Project, "name" | "description" | "status" | "progress" | "due_at" | "goal_id" | "area_id" | "archived">>,
+  ) => patch("projects", id, p),
+  remove: (id: string) => removeRow("projects", id),
+  /** Recompute progress = done / total * 100 from the project's tasks. */
+  async recomputeProgress(id: string): Promise<number> {
+    const row = await selectOne<{ total: number; done: number }>(
+      "SELECT COUNT(*) AS total, SUM(CASE WHEN status = 'done' THEN 1 ELSE 0 END) AS done FROM tasks WHERE project_id = $1 AND archived = 0",
+      [id],
+    );
+    const total = row?.total ?? 0;
+    const done = row?.done ?? 0;
+    const progress = total === 0 ? 0 : Math.round((done / total) * 100);
+    await patch("projects", id, { progress });
+    return progress;
+  },
+};
 
-export async function listLinks(resourceId: string): Promise<DetailedLink[]> {
+/* ----------------------------------------------------------------- Tasks */
+
+export const tasks = {
+  async listByProject(projectId: string, archived = false): Promise<Task[]> {
+    const conn = await db();
+    return conn.select<Task[]>(
+      "SELECT * FROM tasks WHERE project_id = $1 AND archived = $2 ORDER BY sort_order, created_at",
+      [projectId, archived ? 1 : 0],
+    );
+  },
+  async listToday(): Promise<Task[]> {
+    const endOfToday = endOfTodayMs();
+    const conn = await db();
+    return conn.select<Task[]>(
+      "SELECT * FROM tasks WHERE archived = 0 AND status != 'done' AND due_at IS NOT NULL AND due_at <= $1 ORDER BY priority, due_at",
+      [endOfToday],
+    );
+  },
+  async completedOn(dayStart: number, dayEnd: number): Promise<Task[]> {
+    const conn = await db();
+    return conn.select<Task[]>(
+      "SELECT * FROM tasks WHERE completed_at IS NOT NULL AND completed_at >= $1 AND completed_at <= $2 ORDER BY completed_at",
+      [dayStart, dayEnd],
+    );
+  },
+  async listAll(archived = false): Promise<Task[]> {
+    const conn = await db();
+    return conn.select<Task[]>(
+      "SELECT * FROM tasks WHERE archived = $1 ORDER BY sort_order, created_at",
+      [archived ? 1 : 0],
+    );
+  },
+  async listUpcoming(): Promise<Task[]> {
+    const conn = await db();
+    return conn.select<Task[]>(
+      "SELECT * FROM tasks WHERE archived = 0 AND status != 'done' AND due_at IS NOT NULL AND due_at > $1 ORDER BY due_at",
+      [endOfTodayMs()],
+    );
+  },
+  get: (id: string) => selectOne<Task>("SELECT * FROM tasks WHERE id = $1", [id]),
+  async create(title: string, projectId: string | null = null): Promise<Task> {
+    const t = now();
+    const row: Task = {
+      id: uid(), title, description: "", status: "todo", priority: "p3",
+      due_at: null, completed_at: null, sort_order: t, project_id: projectId,
+      goal_id: null, tags: "", created_at: t, updated_at: t, archived: 0,
+    };
+    await insert("tasks", row);
+    return row;
+  },
+  update: (
+    id: string,
+    p: Partial<Pick<Task, "title" | "description" | "status" | "priority" | "due_at" | "completed_at" | "sort_order" | "project_id" | "goal_id" | "tags" | "archived">>,
+  ) => patch("tasks", id, p),
+  /** Toggle done, stamping completed_at, then refresh the project's progress. */
+  async setStatus(id: string, status: Task["status"]): Promise<void> {
+    const completed_at = status === "done" ? now() : null;
+    await patch("tasks", id, { status, completed_at });
+    const task = await tasks.get(id);
+    if (task?.project_id) await projects.recomputeProgress(task.project_id);
+  },
+  remove: (id: string) => removeRow("tasks", id),
+};
+
+/* ----------------------------------------------------------------- Notes */
+
+export const notes = {
+  async list(archived = false): Promise<Note[]> {
+    const conn = await db();
+    return conn.select<Note[]>(
+      "SELECT * FROM notes WHERE archived = $1 ORDER BY pinned DESC, updated_at DESC",
+      [archived ? 1 : 0],
+    );
+  },
+  get: (id: string) => selectOne<Note>("SELECT * FROM notes WHERE id = $1", [id]),
+  async create(title: string): Promise<Note> {
+    const t = now();
+    const row: Note = {
+      id: uid(), title, content: "", tags: "", pinned: 0,
+      created_at: t, updated_at: t, archived: 0,
+    };
+    await insert("notes", row);
+    return row;
+  },
+  update: (id: string, p: Partial<Pick<Note, "title" | "content" | "tags" | "pinned" | "archived">>) =>
+    patch("notes", id, p),
+  remove: (id: string) => removeRow("notes", id),
+};
+
+/* --------------------------------------------------------------- Habits */
+
+export const habits = {
+  async list(archived = false): Promise<Habit[]> {
+    const conn = await db();
+    return conn.select<Habit[]>(
+      "SELECT * FROM habits WHERE archived = $1 ORDER BY created_at",
+      [archived ? 1 : 0],
+    );
+  },
+  get: (id: string) => selectOne<Habit>("SELECT * FROM habits WHERE id = $1", [id]),
+  async create(name: string): Promise<Habit> {
+    const t = now();
+    const row: Habit = {
+      id: uid(), name, frequency: "daily", target: 1, color: null,
+      goal_id: null, created_at: t, updated_at: t, archived: 0,
+    };
+    await insert("habits", row);
+    return row;
+  },
+  update: (id: string, p: Partial<Pick<Habit, "name" | "frequency" | "target" | "color" | "goal_id" | "archived">>) =>
+    patch("habits", id, p),
+  remove: (id: string) => removeRow("habits", id),
+};
+
+export const habitCompletions = {
+  async forDate(date: string): Promise<HabitCompletion[]> {
+    const conn = await db();
+    return conn.select<HabitCompletion[]>(
+      "SELECT * FROM habit_completions WHERE date = $1",
+      [date],
+    );
+  },
+  async forHabit(habitId: string): Promise<HabitCompletion[]> {
+    const conn = await db();
+    return conn.select<HabitCompletion[]>(
+      "SELECT * FROM habit_completions WHERE habit_id = $1 ORDER BY date DESC",
+      [habitId],
+    );
+  },
+  /** Mark a habit done for a day (idempotent on (habit_id, date)). */
+  async set(habitId: string, date: string, count = 1): Promise<void> {
+    const conn = await db();
+    await conn.execute(
+      `INSERT INTO habit_completions (id, habit_id, date, count, created_at)
+       VALUES ($1, $2, $3, $4, $5)
+       ON CONFLICT (habit_id, date) DO UPDATE SET count = excluded.count`,
+      [uid(), habitId, date, count, now()],
+    );
+  },
+  async unset(habitId: string, date: string): Promise<void> {
+    const conn = await db();
+    await conn.execute(
+      "DELETE FROM habit_completions WHERE habit_id = $1 AND date = $2",
+      [habitId, date],
+    );
+  },
+};
+
+/* ---------------------------------------------------------------- Events */
+
+export const events = {
+  async between(startMs: number, endMs: number): Promise<CalEvent[]> {
+    const conn = await db();
+    return conn.select<CalEvent[]>(
+      "SELECT * FROM events WHERE archived = 0 AND start_at >= $1 AND start_at <= $2 ORDER BY start_at",
+      [startMs, endMs],
+    );
+  },
+  get: (id: string) => selectOne<CalEvent>("SELECT * FROM events WHERE id = $1", [id]),
+  async create(title: string, startAt: number): Promise<CalEvent> {
+    const t = now();
+    const row: CalEvent = {
+      id: uid(), title, description: "", start_at: startAt, end_at: null,
+      all_day: 0, location: "", created_at: t, updated_at: t, archived: 0,
+    };
+    await insert("events", row);
+    return row;
+  },
+  update: (
+    id: string,
+    p: Partial<Pick<CalEvent, "title" | "description" | "start_at" | "end_at" | "all_day" | "location" | "archived">>,
+  ) => patch("events", id, p),
+  remove: (id: string) => removeRow("events", id),
+};
+
+/* ---------------------------------------------------------------- People */
+
+export const people = {
+  async list(archived = false): Promise<Person[]> {
+    const conn = await db();
+    return conn.select<Person[]>(
+      "SELECT * FROM people WHERE archived = $1 ORDER BY first_name COLLATE NOCASE, last_name COLLATE NOCASE",
+      [archived ? 1 : 0],
+    );
+  },
+  get: (id: string) => selectOne<Person>("SELECT * FROM people WHERE id = $1", [id]),
+  async create(firstName: string, lastName = ""): Promise<Person> {
+    const t = now();
+    const row: Person = {
+      id: uid(), first_name: firstName, last_name: lastName, email: "", phone: "",
+      avatar_url: null, birthday: null, notes: "", relationship_tags: "",
+      last_interaction_at: null, created_at: t, updated_at: t, archived: 0,
+    };
+    await insert("people", row);
+    return row;
+  },
+  update: (
+    id: string,
+    p: Partial<Pick<Person, "first_name" | "last_name" | "email" | "phone" | "avatar_url" | "birthday" | "notes" | "relationship_tags" | "last_interaction_at" | "archived">>,
+  ) => patch("people", id, p),
+  touch: (id: string) => patch("people", id, { last_interaction_at: now() }),
+  remove: (id: string) => removeRow("people", id),
+};
+
+export const peopleDates = {
+  async forPerson(personId: string): Promise<PersonDate[]> {
+    const conn = await db();
+    return conn.select<PersonDate[]>(
+      "SELECT * FROM people_dates WHERE person_id = $1 ORDER BY date",
+      [personId],
+    );
+  },
+  async create(personId: string, label: string, date: string, recurring = true): Promise<PersonDate> {
+    const row: PersonDate = {
+      id: uid(), person_id: personId, label, date, recurring: recurring ? 1 : 0, created_at: now(),
+    };
+    await insert("people_dates", row);
+    return row;
+  },
+  remove: (id: string) => removeRow("people_dates", id),
+};
+
+/* ------------------------------------------------------------ Daily Hubs */
+
+export const dailyHubs = {
+  get: (date: string) => selectOne<DailyHub>("SELECT * FROM daily_hubs WHERE date = $1", [date]),
+  /** Get today's hub, creating it if missing (the Daily Hub engine entry point). */
+  async ensure(date: string): Promise<DailyHub> {
+    const existing = await dailyHubs.get(date);
+    if (existing) return existing;
+    const t = now();
+    const row: DailyHub = {
+      id: uid(), date, journal: "", mood: null, energy: null,
+      wins: "", challenges: "", lessons: "", gratitude: "", created_at: t, updated_at: t,
+    };
+    await insert("daily_hubs", row);
+    return row;
+  },
+  update: (
+    id: string,
+    p: Partial<Pick<DailyHub, "journal" | "mood" | "energy" | "wins" | "challenges" | "lessons" | "gratitude">>,
+  ) => patch("daily_hubs", id, p),
+};
+
+/* ----------------------------------------------------------- Notifications */
+
+export const notifications = {
+  async list(unreadOnly = false): Promise<Notification[]> {
+    const conn = await db();
+    const where = unreadOnly ? "WHERE read = 0" : "";
+    return conn.select<Notification[]>(
+      `SELECT * FROM notifications ${where} ORDER BY created_at DESC`,
+    );
+  },
+  async create(type: string, title: string, body = ""): Promise<Notification> {
+    const row: Notification = {
+      id: uid(), type, title, body, entity_type: null, entity_id: null, read: 0, created_at: now(),
+    };
+    await insert("notifications", row);
+    return row;
+  },
+  async markRead(id: string): Promise<void> {
+    const conn = await db();
+    await conn.execute("UPDATE notifications SET read = 1 WHERE id = $1", [id]);
+  },
+  remove: (id: string) => removeRow("notifications", id),
+};
+
+/* --------------------------------------------------------------- Activity */
+
+export const activity = {
+  async recent(limit = 50): Promise<Activity[]> {
+    const conn = await db();
+    return conn.select<Activity[]>(
+      "SELECT * FROM activity ORDER BY created_at DESC LIMIT $1",
+      [limit],
+    );
+  },
+  async log(kind: string, title: string, opts: { detail?: string; entityType?: string; entityId?: string } = {}): Promise<void> {
+    await insert("activity", {
+      id: uid(), entity_type: opts.entityType ?? null, entity_id: opts.entityId ?? null,
+      kind, title, detail: opts.detail ?? "", created_at: now(),
+    });
+  },
+};
+
+/* ------------------------------------------------------------- Backup */
+
+/** Dump every table to a plain object — used by Settings → Export backup. */
+export async function exportData(): Promise<Record<string, unknown>> {
   const conn = await db();
-  return conn.select<DetailedLink[]>(
-    `SELECT l.id AS id, l.target_type AS target_type, l.target_id AS target_id,
-            CASE l.target_type
-              WHEN 'area' THEN (SELECT name FROM areas WHERE id = l.target_id)
-              WHEN 'project' THEN (SELECT name FROM projects WHERE id = l.target_id)
-              WHEN 'task' THEN (SELECT title FROM tasks WHERE id = l.target_id)
-              WHEN 'contact' THEN (SELECT name FROM contacts WHERE id = l.target_id)
-            END AS label
-       FROM resource_links l
-      WHERE l.resource_id = $1
-      ORDER BY l.created_at ASC`,
-    [resourceId],
-  );
-}
-export async function addLink(resourceId: string, type: LinkTargetType, targetId: string): Promise<void> {
-  const conn = await db();
-  // Avoid duplicates.
-  const existing = await conn.select<{ c: number }[]>(
-    "SELECT COUNT(*) AS c FROM resource_links WHERE resource_id = $1 AND target_type = $2 AND target_id = $3",
-    [resourceId, type, targetId],
-  );
-  if ((existing[0]?.c ?? 0) > 0) return;
-  await conn.execute(
-    "INSERT INTO resource_links (id, resource_id, target_type, target_id, created_at) VALUES ($1,$2,$3,$4,$5)",
-    [crypto.randomUUID(), resourceId, type, targetId, now()],
-  );
-}
-export async function removeLink(linkId: string): Promise<void> {
-  const conn = await db();
-  await conn.execute("DELETE FROM resource_links WHERE id = $1", [linkId]);
-}
-
-/* ---------- Dashboard queries ---------- */
-
-export async function upcoming(limit = 12): Promise<
-  { kind: "project" | "task"; id: string; title: string; due_at: number; context: string }[]
-> {
-  const conn = await db();
-  return conn.select(
-    `SELECT 'project' AS kind, p.id AS id, p.name AS title, p.due_at AS due_at, a.name AS context
-       FROM projects p JOIN areas a ON a.id = p.area_id
-      WHERE p.archived = 0 AND p.status != 'done' AND p.due_at IS NOT NULL
-     UNION ALL
-     SELECT 'task' AS kind, t.id AS id, t.title AS title, t.due_at AS due_at, a.name || ' / ' || p.name AS context
-       FROM tasks t JOIN projects p ON p.id = t.project_id JOIN areas a ON a.id = p.area_id
-      WHERE t.archived = 0 AND t.status = 'todo' AND t.due_at IS NOT NULL
-     ORDER BY due_at ASC LIMIT $1`,
-    [limit],
-  );
-}
-export async function activeProjects(limit = 20): Promise<
-  { id: string; name: string; area_id: string; area_name: string; due_at: number | null }[]
-> {
-  const conn = await db();
-  return conn.select(
-    `SELECT p.id AS id, p.name AS name, p.area_id AS area_id, a.name AS area_name, p.due_at AS due_at
-       FROM projects p JOIN areas a ON a.id = p.area_id
-      WHERE p.archived = 0 AND p.status != 'done'
-      ORDER BY p.updated_at DESC LIMIT $1`,
-    [limit],
-  );
-}
-
-export type { ProjectStatus, TaskStatus };
-
-/* ---------- Activity log ---------- */
-
-export async function logActivity(projectId: string | null, kind: string, title: string, detail = ""): Promise<void> {
-  const conn = await db();
-  await conn.execute(
-    "INSERT INTO activity (id, project_id, kind, title, detail, created_at) VALUES ($1,$2,$3,$4,$5,$6)",
-    [crypto.randomUUID(), projectId, kind, title, detail, now()],
-  );
-}
-export async function listActivity(projectId: string, limit = 15): Promise<Activity[]> {
-  const conn = await db();
-  return conn.select<Activity[]>(
-    "SELECT * FROM activity WHERE project_id = $1 ORDER BY created_at DESC LIMIT $2",
-    [projectId, limit],
-  );
-}
-
-/* ---------- Counts + recently edited (dashboard / sidebar) ---------- */
-
-export async function counts(): Promise<{ projects: number; areas: number; resources: number; archive: number; inbox: number }> {
-  const conn = await db();
-  const rows = await conn.select<{ k: string; c: number }[]>(
-    `SELECT 'projects' AS k, COUNT(*) AS c FROM projects WHERE archived = 0
-     UNION ALL SELECT 'areas', COUNT(*) FROM areas WHERE archived = 0
-     UNION ALL SELECT 'resources', COUNT(*) FROM resources WHERE archived = 0
-     UNION ALL SELECT 'archive',
-       (SELECT COUNT(*) FROM projects WHERE archived = 1)
-       + (SELECT COUNT(*) FROM areas WHERE archived = 1)
-       + (SELECT COUNT(*) FROM resources WHERE archived = 1)
-     UNION ALL SELECT 'inbox',
-       (SELECT COUNT(*) FROM resources r WHERE r.archived = 0
-          AND NOT EXISTS (SELECT 1 FROM resource_links l WHERE l.resource_id = r.id))`,
-  );
-  const m: Record<string, number> = {};
-  for (const r of rows) m[r.k] = r.c;
-  return {
-    projects: m.projects ?? 0, areas: m.areas ?? 0, resources: m.resources ?? 0,
-    archive: m.archive ?? 0, inbox: m.inbox ?? 0,
-  };
-}
-
-export async function recentlyEdited(limit = 6): Promise<
-  { kind: "resource" | "project" | "area"; id: string; title: string; context: string; updated_at: number; areaId?: string }[]
-> {
-  const conn = await db();
-  const rows = await conn.select<
-    { kind: "resource" | "project" | "area"; id: string; title: string; context: string; updated_at: number; area_id: string | null }[]
-  >(
-    `SELECT 'resource' AS kind, r.id AS id, r.title AS title, 'Resources' AS context, r.updated_at AS updated_at, NULL AS area_id
-       FROM resources r WHERE r.archived = 0
-     UNION ALL
-     SELECT 'project' AS kind, p.id AS id, p.name AS title, a.name AS context, p.updated_at AS updated_at, p.area_id AS area_id
-       FROM projects p JOIN areas a ON a.id = p.area_id WHERE p.archived = 0
-     UNION ALL
-     SELECT 'area' AS kind, a.id AS id, a.name AS title, 'Areas' AS context, a.updated_at AS updated_at, a.id AS area_id
-       FROM areas a WHERE a.archived = 0
-     ORDER BY updated_at DESC LIMIT $1`,
-    [limit],
-  );
-  return rows.map((r) => ({
-    kind: r.kind, id: r.id, title: r.title, context: r.context,
-    updated_at: r.updated_at, areaId: r.area_id ?? undefined,
-  }));
-}
-
-// Recently archived items across types (for the dashboard Archive card).
-export async function recentArchived(limit = 6): Promise<
-  { kind: "project" | "resource" | "area"; id: string; title: string; context: string; areaId?: string }[]
-> {
-  const conn = await db();
-  const rows = await conn.select<
-    { kind: "project" | "resource" | "area"; id: string; title: string; context: string; updated_at: number; area_id: string | null }[]
-  >(
-    `SELECT 'project' AS kind, p.id AS id, p.name AS title, a.name AS context, p.updated_at AS updated_at, p.area_id AS area_id
-       FROM projects p JOIN areas a ON a.id = p.area_id WHERE p.archived = 1
-     UNION ALL
-     SELECT 'resource' AS kind, r.id AS id, r.title AS title, 'Resources' AS context, r.updated_at AS updated_at, NULL AS area_id
-       FROM resources r WHERE r.archived = 1
-     UNION ALL
-     SELECT 'area' AS kind, a.id AS id, a.name AS title, 'Areas' AS context, a.updated_at AS updated_at, a.id AS area_id
-       FROM areas a WHERE a.archived = 1
-     ORDER BY updated_at DESC LIMIT $1`,
-    [limit],
-  );
-  return rows.map((r) => ({ kind: r.kind, id: r.id, title: r.title, context: r.context, areaId: r.area_id ?? undefined }));
-}
-
-/* ---------- Global search ---------- */
-
-export interface SearchHit {
-  kind: "resource" | "project" | "task" | "area" | "contact";
-  id: string;
-  title: string;
-  context: string;
-  areaId?: string;
-  projectId?: string;
-}
-
-export async function search(term: string, limit = 40): Promise<SearchHit[]> {
-  const conn = await db();
-  const like = "%" + term + "%";
-  const rows = await conn.select<
-    { kind: SearchHit["kind"]; id: string; title: string; context: string; area_id: string | null; project_id: string | null }[]
-  >(
-    `SELECT 'resource' AS kind, r.id AS id, r.title AS title, 'Resources' AS context, NULL AS area_id, NULL AS project_id
-       FROM resources r WHERE r.archived = 0 AND (r.title LIKE $1 OR r.content LIKE $1)
-     UNION ALL
-     SELECT 'project' AS kind, p.id AS id, p.name AS title, a.name AS context, p.area_id AS area_id, NULL AS project_id
-       FROM projects p JOIN areas a ON a.id = p.area_id WHERE p.archived = 0 AND p.name LIKE $1
-     UNION ALL
-     SELECT 'task' AS kind, t.id AS id, t.title AS title, a.name || ' / ' || p.name AS context, p.area_id AS area_id, p.id AS project_id
-       FROM tasks t JOIN projects p ON p.id = t.project_id JOIN areas a ON a.id = p.area_id
-      WHERE t.archived = 0 AND t.title LIKE $1
-     UNION ALL
-     SELECT 'area' AS kind, a.id AS id, a.name AS title, 'Areas' AS context, a.id AS area_id, NULL AS project_id
-       FROM areas a WHERE a.archived = 0 AND a.name LIKE $1
-     UNION ALL
-     SELECT 'contact' AS kind, c.id AS id, c.name AS title, 'Contacts' AS context, NULL AS area_id, NULL AS project_id
-       FROM contacts c WHERE c.archived = 0 AND (c.name LIKE $1 OR c.notes LIKE $1)
-     LIMIT $2`,
-    [like, limit],
-  );
-  return rows.map((r) => ({
-    kind: r.kind, id: r.id, title: r.title, context: r.context,
-    areaId: r.area_id ?? undefined, projectId: r.project_id ?? undefined,
-  }));
-}
-
-/* ---------- Events + calendar ---------- */
-
-import type { CalEvent, CalItem } from "./types";
-
-export async function createEvent(startAt: number, title = ""): Promise<CalEvent> {
-  const conn = await db();
-  const t = now();
-  const ev: CalEvent = {
-    id: crypto.randomUUID(), title, start_at: startAt, end_at: null,
-    all_day: 1, notes: "", archived: 0, created_at: t, updated_at: t,
-  };
-  await conn.execute(
-    "INSERT INTO events (id, title, start_at, end_at, all_day, notes, archived, created_at, updated_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)",
-    [ev.id, ev.title, ev.start_at, ev.end_at, ev.all_day, ev.notes, ev.archived, ev.created_at, ev.updated_at],
-  );
-  return ev;
-}
-
-export async function updateEvent(
-  id: string,
-  patch: Partial<Pick<CalEvent, "title" | "start_at" | "end_at" | "all_day" | "notes" | "archived">>,
-): Promise<void> {
-  const conn = await db();
-  const { clause, values, next } = setClause(patch);
-  if (!clause) return;
-  values.push(now(), id);
-  await conn.execute(
-    "UPDATE events SET " + clause + ", updated_at = $" + next + " WHERE id = $" + (next + 1),
-    values,
-  );
-}
-
-export async function deleteEvent(id: string): Promise<void> {
-  const conn = await db();
-  await conn.execute("DELETE FROM events WHERE id = $1", [id]);
-}
-
-export async function getEvent(id: string): Promise<CalEvent | null> {
-  const conn = await db();
-  const rows = await conn.select<CalEvent[]>("SELECT * FROM events WHERE id = $1", [id]);
-  return rows[0] ?? null;
-}
-
-// All dated items (events + project/task due dates) within [start, end).
-export async function calendarItems(start: number, end: number): Promise<CalItem[]> {
-  const conn = await db();
-  const rows = await conn.select<
-    { kind: "event" | "project" | "task"; id: string; title: string; at: number; context: string; area_id: string | null }[]
-  >(
-    `SELECT 'event' AS kind, e.id AS id, e.title AS title, e.start_at AS at, '' AS context, NULL AS area_id
-       FROM events e
-      WHERE e.archived = 0 AND e.start_at >= $1 AND e.start_at < $2
-     UNION ALL
-     SELECT 'project' AS kind, p.id AS id, p.name AS title, p.due_at AS at, a.name AS context, p.area_id AS area_id
-       FROM projects p JOIN areas a ON a.id = p.area_id
-      WHERE p.archived = 0 AND p.due_at IS NOT NULL AND p.due_at >= $1 AND p.due_at < $2
-     UNION ALL
-     SELECT 'task' AS kind, t.id AS id, t.title AS title, t.due_at AS at, a.name || ' / ' || p.name AS context, p.area_id AS area_id
-       FROM tasks t JOIN projects p ON p.id = t.project_id JOIN areas a ON a.id = p.area_id
-      WHERE t.archived = 0 AND t.due_at IS NOT NULL AND t.due_at >= $1 AND t.due_at < $2
-     ORDER BY at ASC`,
-    [start, end],
-  );
-  return rows.map((r) => ({
-    kind: r.kind, id: r.id, title: r.title, at: r.at, context: r.context,
-    areaId: r.area_id ?? undefined,
-  }));
-}
-
-export type { CalEvent, CalItem };
-
-/* ---------- CRM: contacts ---------- */
-
-import type { Contact, ContactDate } from "./types";
-
-export async function listContacts(archived = false): Promise<Contact[]> {
-  const conn = await db();
-  return conn.select<Contact[]>(
-    "SELECT * FROM contacts WHERE archived = $1 ORDER BY name COLLATE NOCASE ASC",
-    [archived ? 1 : 0],
-  );
-}
-export async function getContact(id: string): Promise<Contact | null> {
-  const conn = await db();
-  const rows = await conn.select<Contact[]>("SELECT * FROM contacts WHERE id = $1", [id]);
-  return rows[0] ?? null;
-}
-export async function createContact(name = ""): Promise<Contact> {
-  const conn = await db();
-  const t = now();
-  const c: Contact = { id: crypto.randomUUID(), name, notes: "", archived: 0, created_at: t, updated_at: t };
-  await conn.execute(
-    "INSERT INTO contacts (id, name, notes, archived, created_at, updated_at) VALUES ($1,$2,$3,$4,$5,$6)",
-    [c.id, c.name, c.notes, c.archived, c.created_at, c.updated_at],
-  );
-  return c;
-}
-export async function updateContact(id: string, patch: Partial<Pick<Contact, "name" | "notes" | "archived">>): Promise<void> {
-  const conn = await db();
-  const { clause, values, next } = setClause(patch);
-  if (!clause) return;
-  values.push(now(), id);
-  await conn.execute(
-    "UPDATE contacts SET " + clause + ", updated_at = $" + next + " WHERE id = $" + (next + 1),
-    values,
-  );
-}
-export async function deleteContact(id: string): Promise<void> {
-  const conn = await db();
-  await conn.execute("DELETE FROM contact_dates WHERE contact_id = $1", [id]);
-  await conn.execute("DELETE FROM contact_links WHERE contact_id = $1", [id]);
-  await conn.execute("DELETE FROM resource_links WHERE target_type = 'contact' AND target_id = $1", [id]);
-  await conn.execute("DELETE FROM contacts WHERE id = $1", [id]);
-}
-export async function listAllContacts(): Promise<{ id: string; name: string }[]> {
-  const conn = await db();
-  return conn.select("SELECT id, name FROM contacts WHERE archived = 0 ORDER BY name COLLATE NOCASE ASC");
-}
-
-/* ---------- CRM: contact dates ---------- */
-
-export async function listContactDates(contactId: string): Promise<ContactDate[]> {
-  const conn = await db();
-  return conn.select<ContactDate[]>(
-    "SELECT * FROM contact_dates WHERE contact_id = $1 ORDER BY date_at ASC",
-    [contactId],
-  );
-}
-export async function addContactDate(contactId: string, label: string, dateAt: number): Promise<ContactDate> {
-  const conn = await db();
-  const cd: ContactDate = { id: crypto.randomUUID(), contact_id: contactId, label, date_at: dateAt, recurring: 1, created_at: now() };
-  await conn.execute(
-    "INSERT INTO contact_dates (id, contact_id, label, date_at, recurring, created_at) VALUES ($1,$2,$3,$4,$5,$6)",
-    [cd.id, cd.contact_id, cd.label, cd.date_at, cd.recurring, cd.created_at],
-  );
-  return cd;
-}
-export async function updateContactDate(id: string, patch: Partial<Pick<ContactDate, "label" | "date_at" | "recurring">>): Promise<void> {
-  const conn = await db();
-  const { clause, values, next } = setClause(patch);
-  if (!clause) return;
-  values.push(id);
-  await conn.execute("UPDATE contact_dates SET " + clause + " WHERE id = $" + next, values);
-}
-export async function deleteContactDate(id: string): Promise<void> {
-  const conn = await db();
-  await conn.execute("DELETE FROM contact_dates WHERE id = $1", [id]);
-}
-
-// All contact dates joined with the contact name (for calendar/dashboard).
-export async function allContactDates(): Promise<
-  { id: string; contact_id: string; contact_name: string; label: string; date_at: number; recurring: number }[]
-> {
-  const conn = await db();
-  return conn.select(
-    `SELECT d.id AS id, d.contact_id AS contact_id, c.name AS contact_name,
-            d.label AS label, d.date_at AS date_at, d.recurring AS recurring
-       FROM contact_dates d JOIN contacts c ON c.id = d.contact_id
-      WHERE c.archived = 0`,
-  );
-}
-
-/* ---------- CRM: contact ↔ project links ---------- */
-
-export async function listContactProjects(contactId: string): Promise<{ link_id: string; project_id: string; name: string; area_name: string }[]> {
-  const conn = await db();
-  return conn.select(
-    `SELECT l.id AS link_id, p.id AS project_id, p.name AS name, a.name AS area_name
-       FROM contact_links l JOIN projects p ON p.id = l.project_id JOIN areas a ON a.id = p.area_id
-      WHERE l.contact_id = $1 ORDER BY a.name, p.name`,
-    [contactId],
-  );
-}
-export async function listProjectContacts(projectId: string): Promise<{ id: string; name: string }[]> {
-  const conn = await db();
-  return conn.select(
-    `SELECT c.id AS id, c.name AS name FROM contact_links l JOIN contacts c ON c.id = l.contact_id
-      WHERE l.project_id = $1 AND c.archived = 0 ORDER BY c.name COLLATE NOCASE ASC`,
-    [projectId],
-  );
-}
-export async function addContactProject(contactId: string, projectId: string): Promise<void> {
-  const conn = await db();
-  const existing = await conn.select<{ c: number }[]>(
-    "SELECT COUNT(*) AS c FROM contact_links WHERE contact_id = $1 AND project_id = $2",
-    [contactId, projectId],
-  );
-  if ((existing[0]?.c ?? 0) > 0) return;
-  await conn.execute(
-    "INSERT INTO contact_links (id, contact_id, project_id, created_at) VALUES ($1,$2,$3,$4)",
-    [crypto.randomUUID(), contactId, projectId, now()],
-  );
-}
-export async function removeContactProject(linkId: string): Promise<void> {
-  const conn = await db();
-  await conn.execute("DELETE FROM contact_links WHERE id = $1", [linkId]);
-}
-
-/* ---------- Backup / restore (content export & import) ---------- */
-
-// All content tables, in dependency order (parents before children) so a
-// Replace import can insert without violating logical references.
-const CONTENT_TABLES = [
-  "areas", "projects", "tasks", "resources", "resource_links",
-  "events", "contacts", "contact_dates", "contact_links", "activity",
-] as const;
-type ContentTable = (typeof CONTENT_TABLES)[number];
-
-export interface ContentBackup {
-  format: "dano-content";
-  version: number;
-  exported_at: number;
-  tables: Record<string, Record<string, unknown>[]>;
-}
-
-export async function exportContent(): Promise<ContentBackup> {
-  const conn = await db();
-  const tables: Record<string, Record<string, unknown>[]> = {};
-  for (const t of CONTENT_TABLES) {
-    tables[t] = await conn.select<Record<string, unknown>[]>(`SELECT * FROM ${t}`);
+  const tableNames = [
+    "areas", "goals", "projects", "tasks", "notes", "habits", "habit_completions",
+    "events", "people", "people_dates", "daily_hubs", "links", "notifications", "activity",
+  ];
+  const tables: Record<string, unknown[]> = {};
+  for (const t of tableNames) {
+    tables[t] = await conn.select<unknown[]>(`SELECT * FROM ${t}`);
   }
-  return { format: "dano-content", version: 1, exported_at: now(), tables };
+  return { app: "DANO", schema: "v1", exported_at: now(), tables };
 }
 
-function columnsOf(rows: Record<string, unknown>[]): string[] {
-  const cols = new Set<string>();
-  for (const r of rows) for (const k of Object.keys(r)) cols.add(k);
-  return [...cols];
-}
+/* ----------------------------------------------------------- Graph labels */
 
-// Import content. mode "replace" wipes all content tables first; mode "merge"
-// keeps existing rows and only inserts rows whose id is not already present.
-export async function importContent(backup: ContentBackup, mode: "replace" | "merge"): Promise<{ inserted: number; skipped: number }> {
-  if (!backup || backup.format !== "dano-content" || !backup.tables) {
-    throw new Error("Not a valid DANO content backup file.");
-  }
-  const conn = await db();
-  let inserted = 0;
-  let skipped = 0;
-
-  if (mode === "replace") {
-    // Delete children-first to avoid leaving orphans mid-way.
-    for (const t of [...CONTENT_TABLES].reverse()) {
-      await conn.execute(`DELETE FROM ${t}`);
+/** Human label for any entity, used by timelines and backlink panels. */
+export async function entityLabel(type: EntityType, id: string): Promise<string> {
+  switch (type) {
+    case "person": {
+      const p = await people.get(id);
+      return p ? `${p.first_name} ${p.last_name}`.trim() || "Unnamed" : "Person";
     }
-  }
-
-  for (const t of CONTENT_TABLES) {
-    const rows = backup.tables[t] ?? [];
-    if (rows.length === 0) continue;
-
-    // Existing ids (for merge skip).
-    let existing = new Set<string>();
-    if (mode === "merge") {
-      const ex = await conn.select<{ id: string }[]>(`SELECT id FROM ${t}`);
-      existing = new Set(ex.map((r) => r.id));
-    }
-
-    for (const row of rows) {
-      const id = row.id as string | undefined;
-      if (mode === "merge" && id && existing.has(id)) { skipped++; continue; }
-      const cols = columnsOf([row]);
-      if (cols.length === 0) continue;
-      const placeholders = cols.map((_, i) => "$" + (i + 1)).join(",");
-      const values = cols.map((c) => (row[c] === undefined ? null : row[c]));
-      await conn.execute(
-        `INSERT OR IGNORE INTO ${t} (${cols.join(",")}) VALUES (${placeholders})`,
-        values,
-      );
-      inserted++;
-    }
-  }
-  return { inserted, skipped };
-}
-
-// Wipe all user content (keeps the schema). Used by "Clear all".
-export async function clearAllContent(): Promise<void> {
-  const conn = await db();
-  for (const t of [...CONTENT_TABLES].reverse()) {
-    await conn.execute(`DELETE FROM ${t}`);
+    case "task":
+      return (await tasks.get(id))?.title ?? "Task";
+    case "project":
+      return (await projects.get(id))?.name ?? "Project";
+    case "note":
+      return (await notes.get(id))?.title ?? "Note";
+    case "event":
+      return (await events.get(id))?.title ?? "Event";
+    case "goal":
+      return (await goals.get(id))?.title ?? "Goal";
+    case "area":
+      return (await areas.get(id))?.name ?? "Area";
+    case "habit":
+      return (await habits.get(id))?.name ?? "Habit";
+    case "daily_hub":
+      return "Daily Hub";
+    default:
+      return type;
   }
 }
 
-export type { ContentTable };
+/* --------------------------------------------------------------- Helpers */
 
-export type { Contact, ContactDate };
+/** End-of-today in ms (local time), for "due today or overdue" queries. */
+function endOfTodayMs(): number {
+  const d = new Date();
+  d.setHours(23, 59, 59, 999);
+  return d.getTime();
+}

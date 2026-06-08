@@ -1,63 +1,51 @@
-// Small date helpers shared across components.
+// Small date helpers. Timestamps are ms-since-epoch; calendar days are 'YYYY-MM-DD'.
 
-export function toDateInput(ms: number | null): string {
+export function todayKey(d: Date = new Date()): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
+export function startOfDayMs(d: Date = new Date()): number {
+  const x = new Date(d);
+  x.setHours(0, 0, 0, 0);
+  return x.getTime();
+}
+
+export function endOfDayMs(d: Date = new Date()): number {
+  const x = new Date(d);
+  x.setHours(23, 59, 59, 999);
+  return x.getTime();
+}
+
+/** Compact, human due-date label relative to today. */
+export function dueLabel(ms: number | null): string {
   if (ms == null) return "";
-  const d = new Date(ms);
-  // Local YYYY-MM-DD for <input type="date">.
-  const off = d.getTimezoneOffset();
-  return new Date(ms - off * 60000).toISOString().slice(0, 10);
+  const due = new Date(ms);
+  const today = startOfDayMs();
+  const dayMs = 86_400_000;
+  const diff = Math.round((startOfDayMs(due) - today) / dayMs);
+  if (diff === 0) return "Today";
+  if (diff === 1) return "Tomorrow";
+  if (diff === -1) return "Yesterday";
+  if (diff < 0) return `${-diff}d overdue`;
+  if (diff < 7) return `in ${diff}d`;
+  return new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric" }).format(due);
 }
 
-export function fromDateInput(v: string): number | null {
-  return v ? new Date(v + "T12:00:00").getTime() : null;
+export function isOverdue(ms: number | null): boolean {
+  return ms != null && ms < startOfDayMs();
 }
 
-export function relativeDue(ms: number): { label: string; tone: "over" | "soon" | "later" } {
-  const d = new Date(ms);
-  const today = new Date();
-  const startToday = new Date(today.getFullYear(), today.getMonth(), today.getDate()).getTime();
-  const startDue = new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
-  const days = Math.round((startDue - startToday) / 86400000);
-  let label: string;
-  if (days < 0) label = `${-days}d overdue`;
-  else if (days === 0) label = "today";
-  else if (days === 1) label = "tomorrow";
-  else if (days < 7) label = `in ${days}d`;
-  else label = d.toLocaleDateString([], { month: "short", day: "numeric" });
-  const tone = days < 0 ? "over" : days <= 2 ? "soon" : "later";
-  return { label, tone };
+/** Parse a <input type="date"> value (YYYY-MM-DD) to end-of-day ms, or null. */
+export function dateInputToMs(value: string): number | null {
+  if (!value) return null;
+  const [y, m, d] = value.split("-").map(Number);
+  return endOfDayMs(new Date(y, m - 1, d));
 }
 
-export function startOfDay(ms: number): number {
-  const d = new Date(ms);
-  return new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
-}
-
-export function sameDay(a: number, b: number): boolean {
-  return startOfDay(a) === startOfDay(b);
-}
-
-export function isToday(ms: number): boolean {
-  return sameDay(ms, Date.now());
-}
-
-const WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
-export const weekdayLabels = WEEKDAYS;
-
-export function dayLabel(ms: number): string {
-  return new Date(ms).toLocaleDateString([], { weekday: "short", month: "short", day: "numeric" });
-}
-
-// Past-oriented relative label: "just now", "5m ago", "3h ago", "yesterday", date.
-export function relativeAgo(ms: number): string {
-  const diff = Date.now() - ms;
-  const min = Math.floor(diff / 60000);
-  if (min < 1) return "just now";
-  if (min < 60) return min + "m ago";
-  const hrs = Math.floor(min / 60);
-  if (hrs < 24) return hrs + "h ago";
-  const days = Math.floor(hrs / 24);
-  if (days === 1) return "yesterday";
-  if (days < 7) return days + "d ago";
-  return new Date(ms).toLocaleDateString([], { month: "short", day: "numeric" });
+/** ms → YYYY-MM-DD for <input type="date">. */
+export function msToDateInput(ms: number | null): string {
+  return ms == null ? "" : todayKey(new Date(ms));
 }
