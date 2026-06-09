@@ -1,36 +1,34 @@
 # Releasing DANO
 
-Pushing a version tag (`vX.Y.Z`) triggers `.github/workflows/release.yml`, which builds
-installers for Linux, Windows and macOS and publishes a GitHub Release with them attached.
+Releases are automated by **release-please**. You don't bump versions or create tags by hand.
 
-## 1. Bump the version in ALL THREE files (must match)
+## The flow
 
-| File | Field |
-|------|-------|
-| `package.json` | `"version"` |
-| `src-tauri/tauri.conf.json` | `"version"` ← this one becomes the app/installer version |
-| `src-tauri/Cargo.toml` | `version` (the `dano` package) |
+1. **Commit with conventional-commit messages** (you already do this):
+   - `feat: …` → next release bumps **MINOR** (`0.2.0 → 0.3.0`)
+   - `fix: …` → bumps **PATCH** (`0.2.0 → 0.2.1`)
+   - `feat!:` or a `BREAKING CHANGE:` footer → bumps **MAJOR** (after 1.0.0)
+   - `chore:`, `docs:`, `ci:`, `refactor:` → no release on their own
+2. Push to `main`. release-please opens (or updates) a **Release PR** titled like
+   `chore(main): release 0.3.0`. It bumps the version in `package.json`,
+   `src-tauri/tauri.conf.json`, `src-tauri/Cargo.toml` and updates `CHANGELOG.md`.
+3. **Merge the Release PR** when you're ready to ship. That creates the GitHub Release + tag,
+   then the `build` job compiles installers for Linux/Windows/macOS and attaches them.
 
-SemVer while pre-1.0: `feat` → bump MINOR (`0.1.0 → 0.2.0`), `fix` → bump PATCH (`0.2.0 → 0.2.1`).
+That's it — **merging the PR is the release.**
 
-## 2. Commit, tag, push
+## One-time setup on GitHub
 
-```bash
-npm run check            # make sure it's green first
-git add -A && git commit -m "chore(release): v0.2.0"
-git tag v0.2.0
-git push && git push --tags
-```
-
-## 3. Watch it build
-
-GitHub → **Actions** tab → the `release` run (3 jobs, ~5–15 min). When done, the Release
-appears under **Releases** with the installers attached, already published.
+- **Settings → Actions → General → Workflow permissions → "Read and write permissions"** (so the
+  bot can open PRs and create releases). Also tick **"Allow GitHub Actions to create and approve
+  pull requests"**.
 
 ## Notes
 
-- The tag (`v0.2.0`) must match the version. Push the tag **after** committing the bump.
-- Unsigned builds warn on first launch (Windows SmartScreen, macOS Gatekeeper). Not a blocker;
-  documented in the README. Real signing + auto-update need paid certs — deferred.
-- To undo a bad release: delete the tag (`git push --delete origin v0.2.0`) and the Release
-  in the GitHub UI, then re-tag.
+- `Cargo.lock` isn't bumped by release-please; `cargo build` refreshes it during the release
+  build (the build doesn't use `--locked`), so this is harmless. Run `cargo check` locally
+  whenever you want the committed lock to match.
+- Manual fallback (rarely needed): bump the three version files yourself, then
+  `git tag vX.Y.Z && git push origin vX.Y.Z` — but prefer the release-please flow.
+- Builds are unsigned, so Windows/macOS show a one-time "unknown developer" warning (documented
+  in the README). Real signing + auto-update need paid certs — deferred.

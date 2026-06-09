@@ -1,18 +1,41 @@
 name: release
 
-# Builds installers for Linux, Windows and macOS and publishes a GitHub Release
-# whenever you push a version tag like v0.2.0. No tag → nothing happens.
+# Automated releases via release-please.
+#
+# How it works:
+#   1. Every push to main, release-please looks at the conventional commits
+#      (feat:, fix:, …) since the last release and maintains a single "Release PR"
+#      that bumps the version (package.json, tauri.conf.json, Cargo.toml) and updates
+#      CHANGELOG.md.
+#   2. When you MERGE that Release PR, release-please creates the GitHub Release + tag,
+#      and the build job below compiles installers for Linux/Windows/macOS and uploads
+#      them to that release.
+#
+# So a release is just: merge the Release PR. No manual version bumps or tags.
 on:
   push:
-    tags:
-      - "v*"
+    branches: [main]
 
-# tauri-action needs write access to create the Release and upload assets.
 permissions:
   contents: write
+  pull-requests: write
 
 jobs:
+  release-please:
+    runs-on: ubuntu-latest
+    outputs:
+      release_created: ${{ steps.rp.outputs.release_created }}
+      tag_name: ${{ steps.rp.outputs.tag_name }}
+    steps:
+      - uses: googleapis/release-please-action@v4
+        id: rp
+        with:
+          config-file: release-please-config.json
+          manifest-file: .release-please-manifest.json
+
   build:
+    needs: release-please
+    if: ${{ needs.release-please.outputs.release_created == 'true' }}
     strategy:
       fail-fast: false
       matrix:
@@ -53,19 +76,13 @@ jobs:
       - name: Install frontend dependencies
         run: npm ci
 
-      - name: Build and publish release
+      - name: Build and attach installers
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          tagName: ${{ github.ref_name }}
-          releaseName: "DANO ${{ github.ref_name }}"
-          releaseBody: |
-            Download the installer for your OS below.
-
-            - **Linux**: `.AppImage` (chmod +x and run) or `.deb`
-            - **Windows**: `-setup.exe` — on the SmartScreen prompt click *More info → Run anyway*
-            - **macOS**: `.dmg` — right-click the app → *Open* the first time
+          tagName: ${{ needs.release-please.outputs.tag_name }}
+          releaseName: "DANO ${{ needs.release-please.outputs.tag_name }}"
           releaseDraft: false
           prerelease: false
           args: ${{ matrix.args }}
