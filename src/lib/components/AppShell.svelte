@@ -15,12 +15,14 @@
     { href: "/notes", label: "Notes", icon: "notes" },
     { href: "/calendar", label: "Calendar", icon: "calendar" },
     { href: "/projects", label: "Projects", icon: "projects" },
+    { href: "/goals", label: "Goals", icon: "goal" },
     { href: "/areas", label: "Areas", icon: "areas" },
     { href: "/habits", label: "Habits", icon: "habits" },
     { href: "/people", label: "People", icon: "people" },
   ];
 
   const menu: { href: string; label: string; icon: IconName }[] = [
+    { href: "/notifications", label: "Notifications", icon: "bell" },
     { href: "/settings", label: "Settings", icon: "user" },
     { href: "/archive", label: "Archive", icon: "archive" },
     { href: "/settings", label: "About DANO", icon: "info" },

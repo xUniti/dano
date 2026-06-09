@@ -1,5 +1,6 @@
 <script lang="ts">
-  import { onMount } from "svelte";
+  import { onMount, tick } from "svelte";
+  import { page } from "$app/stores";
   import {
     dailyHubs,
     tasks as taskDb,
@@ -9,14 +10,25 @@
     notes as noteDb,
     people as peopleDb,
   } from "$lib/db";
+  import { link as gLink } from "$lib/graph";
   import { isTauri } from "$lib/platform";
   import { todayKey, startOfDayMs, endOfDayMs } from "$lib/date";
   import { fullName } from "$lib/people";
-  import type { DailyHub, Task, CalEvent, Note, Person } from "$lib/types";
+  import { detectMention, type MentionMatch } from "$lib/mentions";
+  import type { DailyHub, Task, CalEvent, Note, Person, EntityType } from "$lib/types";
 
   const desktop = isTauri();
 
   let date = $state(new Date());
+
+  // Deep-link from search: /daily?date=YYYY-MM-DD
+  $effect(() => {
+    const d = $page.url.searchParams.get("date");
+    if (d) {
+      const parsed = new Date(`${d}T00:00:00`);
+      if (!Number.isNaN(parsed.getTime()) && todayKey(parsed) !== todayKey(date)) date = parsed;
+    }
+  });
   let hub = $state<DailyHub | null>(null);
   let loading = $state(true);
 
@@ -26,6 +38,28 @@
   let doneHabits = $state<string[]>([]);
   let dayNotes = $state<Note[]>([]);
   let touchedPeople = $state<Person[]>([]);
+
+  // journal + @mention picker
+  let journal = $state("");
+  let journalEl = $state<HTMLTextAreaElement | null>(null);
+  let mention = $state<MentionMatch | null>(null);
+  let mPeople = $state<Person[]>([]);
+  let mTasks = $state<Task[]>([]);
+
+  const suggestions = $derived.by(() => {
+    if (!mention) return [] as { id: string; label: string; type: EntityType }[];
+    const q = mention.query.toLowerCase();
+    if (mention.trigger === "@") {
+      return mPeople
+        .map((p) => ({ id: p.id, label: fullName(p), type: "person" as EntityType }))
+        .filter((s) => s.label.toLowerCase().includes(q))
+        .slice(0, 6);
+    }
+    return mTasks
+      .map((t) => ({ id: t.id, label: t.title, type: "task" as EntityType }))
+      .filter((s) => s.label.toLowerCase().includes(q))
+      .slice(0, 6);
+  });
 
   const isToday = $derived(todayKey(date) === todayKey());
   const heading = $derived(
@@ -43,14 +77,16 @@
     const end = endOfDayMs(date);
 
     hub = await dailyHubs.ensure(key);
+    journal = hub.journal;
 
-    const [tasksDone, evs, comps, habitList, allNotes, allPeople] = await Promise.all([
+    const [tasksDone, evs, comps, habitList, allNotes, allPeople, allTasks] = await Promise.all([
       taskDb.completedOn(start, end),
       eventDb.between(start, end),
       habitCompletions.forDate(key),
       habitDb.list(),
       noteDb.list(),
       peopleDb.list(),
+      taskDb.listAll(),
     ]);
     doneTasks = tasksDone;
     dayEvents = evs;
@@ -60,6 +96,8 @@
     touchedPeople = allPeople.filter(
       (p) => p.last_interaction_at != null && p.last_interaction_at >= start && p.last_interaction_at <= end,
     );
+    mPeople = allPeople;
+    mTasks = allTasks;
     loading = false;
   }
 
@@ -81,6 +119,32 @@
     if (!hub) return;
     await dailyHubs.update(hub.id, patch);
     hub = { ...hub, ...patch };
+  }
+
+  function onJournalInput() {
+    if (!journalEl) return;
+    mention = detectMention(journal.slice(0, journalEl.selectionStart));
+  }
+
+  async function saveJournal() {
+    if (!hub || journal === hub.journal) return;
+    await setField({ journal });
+  }
+
+  async function chooseMention(s: { id: string; label: string; type: EntityType }) {
+    if (!hub || !mention || !journalEl) return;
+    const pos = journalEl.selectionStart;
+    const insert = `${mention.trigger}${s.label} `;
+    journal = journal.slice(0, mention.start) + insert + journal.slice(pos);
+    const caret = mention.start + insert.length;
+    mention = null;
+    await saveJournal();
+    // Link the day to the mentioned entity (people.touch fires inside gLink).
+    await gLink({ type: "daily_hub", id: hub.id }, { type: s.type, id: s.id }, "mentioned_in");
+    await load();
+    await tick();
+    journalEl.focus();
+    journalEl.setSelectionRange(caret, caret);
   }
 </script>
 
@@ -128,15 +192,35 @@
       </div>
 
       <!-- Journal -->
-      <div>
+      <div class="relative">
         <div class="mb-1.5 text-xs uppercase tracking-wide text-fg/35">Journal</div>
         <textarea
-          value={hub.journal}
-          onblur={(e) => setField({ journal: (e.currentTarget as HTMLTextAreaElement).value })}
+          bind:this={journalEl}
+          bind:value={journal}
+          oninput={onJournalInput}
+          onblur={saveJournal}
+          onkeydown={(e) => e.key === "Escape" && (mention = null)}
           rows="6"
-          placeholder="How was your day? Thoughts, events, feelings…"
+          placeholder="How was your day? Type @ to mention a person, # to link a task…"
           class="w-full resize-y rounded-xl border border-fg/10 bg-fg/[0.02] px-3 py-2.5 text-sm leading-relaxed outline-none placeholder:text-fg/25 focus:border-fg/25"
         ></textarea>
+
+        {#if mention && suggestions.length > 0}
+          <div class="absolute left-3 top-16 z-20 w-72 overflow-hidden rounded-lg border border-fg/15 bg-surface shadow-2xl">
+            <div class="border-b border-fg/10 px-3 py-1.5 text-[10px] uppercase tracking-wide text-fg/35">
+              {mention.trigger === "@" ? "People" : "Tasks"}
+            </div>
+            {#each suggestions as s (s.id)}
+              <button
+                type="button"
+                onmousedown={(e) => (e.preventDefault(), chooseMention(s))}
+                class="block w-full truncate px-3 py-2 text-left text-sm text-fg/80 hover:bg-fg/10"
+              >
+                {s.label}
+              </button>
+            {/each}
+          </div>
+        {/if}
       </div>
 
       <!-- Structured reflection -->

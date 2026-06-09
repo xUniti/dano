@@ -8,6 +8,10 @@
     notes as noteDb,
     people as peopleDb,
     areas as areaDb,
+    habits as habitDb,
+    events as eventDb,
+    goals as goalDb,
+    dailyHubs,
   } from "$lib/db";
   import { isTauri } from "$lib/platform";
   import { fullName } from "$lib/people";
@@ -23,9 +27,11 @@
     { label: "Notes", href: "/notes", icon: "notes" },
     { label: "Calendar", href: "/calendar", icon: "calendar" },
     { label: "Projects", href: "/projects", icon: "projects" },
+    { label: "Goals", href: "/goals", icon: "goal" },
     { label: "Areas", href: "/areas", icon: "areas" },
     { label: "Habits", href: "/habits", icon: "habits" },
     { label: "People", href: "/people", icon: "people" },
+    { label: "Notifications", href: "/notifications", icon: "bell" },
     { label: "Settings", href: "/settings", icon: "user" },
     { label: "Archive", href: "/archive", icon: "archive" },
   ];
@@ -62,19 +68,31 @@
       loaded = true;
       return;
     }
-    const [ts, ps, ns, pe, ar] = await Promise.all([
+    const [ts, ps, ns, pe, ar, hb, ev, gl, dh] = await Promise.all([
       taskDb.listAll(),
       projectDb.listAll(),
       noteDb.list(),
       peopleDb.list(),
       areaDb.list(),
+      habitDb.list(),
+      eventDb.listAll(),
+      goalDb.list(),
+      dailyHubs.listAll(),
     ]);
+    const hubLabel = (key: string) =>
+      new Intl.DateTimeFormat(undefined, { weekday: "short", month: "short", day: "numeric", year: "numeric" }).format(
+        new Date(`${key}T00:00:00`),
+      );
     index = [
       ...ts.map((t) => ({ type: "task" as EntityType, icon: "tasks" as IconName, label: t.title, href: "/tasks" })),
       ...ps.map((p) => ({ type: "project" as EntityType, icon: "projects" as IconName, label: p.name, href: `/projects/${p.id}` })),
       ...ns.map((n) => ({ type: "note" as EntityType, icon: "notes" as IconName, label: n.title || "Untitled", href: `/notes?id=${n.id}` })),
       ...pe.map((p) => ({ type: "person" as EntityType, icon: "people" as IconName, label: fullName(p), href: `/people?id=${p.id}` })),
       ...ar.map((a) => ({ type: "area" as EntityType, icon: "areas" as IconName, label: a.name, href: "/areas" })),
+      ...hb.map((h) => ({ type: "habit" as EntityType, icon: "habits" as IconName, label: h.name, href: "/habits" })),
+      ...ev.map((e) => ({ type: "event" as EntityType, icon: "event" as IconName, label: e.title, href: "/calendar" })),
+      ...gl.map((g) => ({ type: "goal" as EntityType, icon: "goal" as IconName, label: g.title, href: "/goals" })),
+      ...dh.map((d) => ({ type: "daily_hub" as EntityType, icon: "today" as IconName, label: hubLabel(d.date), href: `/daily?date=${d.date}` })),
     ];
     loaded = true;
   }
@@ -100,7 +118,7 @@
 
     const navs: Item[] = NAV
       .filter((n) => fuzzy(q, "go to " + n.label) || fuzzy(q, n.label))
-      .slice(0, q ? 5 : 11)
+      .slice(0, q ? 5 : 13)
       .map((n) => ({ kind: "nav", icon: n.icon, label: `Go to ${n.label}`, sub: "navigate", run: () => go(n.href) }));
 
     const jumps: Item[] = q

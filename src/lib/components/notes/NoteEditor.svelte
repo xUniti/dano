@@ -1,10 +1,12 @@
 <script lang="ts">
   import { tick } from "svelte";
-  import { notes as noteDb, people as peopleDb, tasks as taskDb, projects as projectDb, archiveEntity, restoreEntity } from "$lib/db";
+  import { notes as noteDb, people as peopleDb, tasks as taskDb, projects as projectDb, attachments as attachDb, archiveEntity, restoreEntity } from "$lib/db";
   import { toasts } from "$lib/stores/toast.svelte";
   import { link as gLink, neighbors } from "$lib/graph";
   import { renderMarkdown } from "$lib/markdown";
-  import type { Note, Person, Task, EntityType } from "$lib/types";
+  import { detectMention, type MentionMatch } from "$lib/mentions";
+  import { saveAttachmentFile, openAttachment } from "$lib/platform";
+  import type { Note, Person, Task, Attachment, EntityType } from "$lib/types";
 
   interface Props {
     noteId: string;
@@ -20,13 +22,19 @@
 
   let people = $state<Person[]>([]);
   let tasks = $state<Task[]>([]);
+  let noteList = $state<Note[]>([]);
+  let attachList = $state<Attachment[]>([]);
   let backlinks = $state<{ type: EntityType; id: string; label: string; href?: string }[]>([]);
+  let uploading = $state(false);
 
   let titleEl = $state<HTMLInputElement | null>(null);
+  let fileInput = $state<HTMLInputElement | null>(null);
 
   // mention autocomplete
   let textarea = $state<HTMLTextAreaElement | null>(null);
-  let mention = $state<{ trigger: "@" | "#"; query: string; start: number } | null>(null);
+  let mention = $state<MentionMatch | null>(null);
+  // [[wiki-link]] autocomplete (links one note to another)
+  let wiki = $state<{ query: string; start: number } | null>(null);
 
   const suggestions = $derived.by(() => {
     if (!mention) return [] as { id: string; label: string; type: EntityType }[];
@@ -43,6 +51,12 @@
       .slice(0, 6);
   });
 
+  const wikiSuggestions = $derived.by(() => {
+    if (!wiki) return [] as Note[];
+    const q = wiki.query.toLowerCase();
+    return noteList.filter((n) => n.id !== noteId && (n.title || "Untitled").toLowerCase().includes(q)).slice(0, 6);
+  });
+
   async function loadNote() {
     const n = await noteDb.get(noteId);
     if (!n) return;
@@ -51,6 +65,7 @@
     content = n.content;
     tags = n.tags;
     await refreshBacklinks();
+    attachList = await attachDb.forEntity("note", noteId);
     // Fresh note → jump straight into editing the title.
     if (n.title === "Untitled") {
       await tick();
@@ -60,7 +75,7 @@
   }
 
   async function loadRefs() {
-    [people, tasks] = await Promise.all([peopleDb.list(), taskDb.listAll()]);
+    [people, tasks, noteList] = await Promise.all([peopleDb.list(), taskDb.listAll(), noteDb.list()]);
   }
 
   async function refreshBacklinks() {
@@ -79,6 +94,10 @@
           const p = await projectDb.get(n.id);
           label = p?.name ?? "Project";
           href = `/projects/${n.id}`;
+        } else if (n.type === "note") {
+          const other = await noteDb.get(n.id);
+          label = other?.title || "Untitled";
+          href = `/notes?id=${n.id}`;
         } else {
           label = n.type;
         }
@@ -114,16 +133,65 @@
     note.content = content;
   }
 
-  function detectMention() {
+  function onMentionInput() {
     if (!textarea) return;
-    const pos = textarea.selectionStart;
-    const before = content.slice(0, pos);
-    const m = before.match(/([@#])([^\s@#]{0,40})$/);
-    if (m) {
-      mention = { trigger: m[1] as "@" | "#", query: m[2], start: pos - m[0].length };
-    } else {
+    const before = content.slice(0, textarea.selectionStart);
+    const w = before.match(/\[\[([^\]\n]{0,60})$/);
+    if (w) {
+      wiki = { query: w[1], start: textarea.selectionStart - w[0].length };
       mention = null;
+      return;
     }
+    wiki = null;
+    mention = detectMention(before);
+  }
+
+  async function chooseWiki(other: Note) {
+    if (!wiki || !textarea) return;
+    const pos = textarea.selectionStart;
+    const insert = `[[${other.title || "Untitled"}]] `;
+    content = content.slice(0, wiki.start) + insert + content.slice(pos);
+    const caret = wiki.start + insert.length;
+    wiki = null;
+    await saveContent();
+    await gLink({ type: "note", id: noteId }, { type: "note", id: other.id }, "related_to");
+    await refreshBacklinks();
+    await tick();
+    textarea.focus();
+    textarea.setSelectionRange(caret, caret);
+  }
+
+  async function onPickFile(e: Event) {
+    const input = e.currentTarget as HTMLInputElement;
+    const file = input.files?.[0];
+    if (!file) return;
+    uploading = true;
+    try {
+      const path = await saveAttachmentFile(file);
+      await attachDb.create("note", noteId, { name: file.name, mime: file.type, size: file.size, path });
+      attachList = await attachDb.forEntity("note", noteId);
+    } catch (err) {
+      toasts.show(`Attach failed: ${err instanceof Error ? err.message : String(err)}`);
+    } finally {
+      uploading = false;
+      input.value = "";
+    }
+  }
+  async function open(a: Attachment) {
+    try {
+      await openAttachment(a.path);
+    } catch (err) {
+      toasts.show(`Couldn’t open: ${err instanceof Error ? err.message : String(err)}`);
+    }
+  }
+  async function removeAttachment(a: Attachment) {
+    await attachDb.remove(a.id);
+    attachList = await attachDb.forEntity("note", noteId);
+  }
+  function fmtSize(n: number): string {
+    if (n < 1024) return `${n} B`;
+    if (n < 1024 * 1024) return `${(n / 1024).toFixed(0)} KB`;
+    return `${(n / 1024 / 1024).toFixed(1)} MB`;
   }
 
   async function choose(s: { id: string; label: string; type: EntityType }) {
@@ -162,6 +230,15 @@
         placeholder="Untitled"
         class="flex-1 bg-transparent text-lg font-semibold tracking-tight outline-none placeholder:text-fg/30"
       />
+      <input bind:this={fileInput} type="file" class="hidden" onchange={onPickFile} />
+      <button
+        type="button"
+        onclick={() => fileInput?.click()}
+        disabled={uploading}
+        class="rounded-md border border-fg/10 px-2.5 py-1 text-xs text-fg/60 hover:bg-fg/5 hover:text-fg disabled:opacity-50"
+      >
+        {uploading ? "Uploading…" : "📎 Attach"}
+      </button>
       <button
         type="button"
         onclick={() => (preview = !preview)}
@@ -191,10 +268,10 @@
         <textarea
           bind:this={textarea}
           bind:value={content}
-          oninput={detectMention}
+          oninput={onMentionInput}
           onblur={saveContent}
-          onkeydown={(e) => e.key === "Escape" && (mention = null)}
-          placeholder="Write in markdown… type @ to mention a person, # to link a task"
+          onkeydown={(e) => e.key === "Escape" && ((mention = null), (wiki = null))}
+          placeholder="Write in markdown… @ mentions a person, # links a task, [[ links a note"
           class="selectable h-full w-full resize-none bg-transparent px-5 py-4 font-mono text-sm leading-relaxed outline-none placeholder:text-fg/25"
         ></textarea>
 
@@ -213,9 +290,38 @@
               </button>
             {/each}
           </div>
+        {:else if wiki && wikiSuggestions.length > 0}
+          <div class="absolute left-5 top-3 z-20 w-72 overflow-hidden rounded-lg border border-fg/15 bg-surface shadow-2xl">
+            <div class="border-b border-fg/10 px-3 py-1.5 text-[10px] uppercase tracking-wide text-fg/35">Link a note</div>
+            {#each wikiSuggestions as n (n.id)}
+              <button
+                type="button"
+                onmousedown={(e) => (e.preventDefault(), chooseWiki(n))}
+                class="block w-full truncate px-3 py-2 text-left text-sm text-fg/80 hover:bg-fg/10"
+              >
+                {n.title || "Untitled"}
+              </button>
+            {/each}
+          </div>
         {/if}
       {/if}
     </div>
+
+    <!-- Attachments -->
+    {#if attachList.length > 0}
+      <div class="border-t border-fg/10 px-5 py-3">
+        <div class="mb-1.5 text-[10px] uppercase tracking-wide text-fg/35">Attachments</div>
+        <div class="flex flex-wrap gap-1.5">
+          {#each attachList as a (a.id)}
+            <span class="flex items-center gap-1.5 rounded-md bg-fg/5 px-2 py-1 text-xs text-fg/75">
+              <button type="button" onclick={() => open(a)} class="max-w-48 truncate hover:text-accent" title={a.name}>📎 {a.name}</button>
+              <span class="text-fg/30">{fmtSize(a.size)}</span>
+              <button type="button" onclick={() => removeAttachment(a)} aria-label="Remove attachment" class="text-fg/30 hover:text-red-300">✕</button>
+            </span>
+          {/each}
+        </div>
+      </div>
+    {/if}
 
     <!-- Backlinks -->
     {#if backlinks.length > 0}

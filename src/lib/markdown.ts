@@ -12,6 +12,8 @@ function escapeHtml(s: string): string {
 
 function inline(s: string): string {
   return s
+    // [[wiki-links]] to other notes (graph link created in the editor)
+    .replace(/\[\[([^\]\n]+)\]\]/g, '<span class="rounded bg-indigo-500/15 px-1 text-indigo-300">$1</span>')
     .replace(/`([^`]+)`/g, '<code class="rounded bg-white/10 px-1 py-0.5 text-[0.85em]">$1</code>')
     .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
     .replace(/(^|[^*])\*([^*]+)\*/g, "$1<em>$2</em>")

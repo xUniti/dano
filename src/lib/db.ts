@@ -6,6 +6,7 @@ import Database from "@tauri-apps/plugin-sql";
 import type {
   Activity,
   Area,
+  Attachment,
   CalEvent,
   DailyHub,
   EntityType,
@@ -325,6 +326,14 @@ export const habitCompletions = {
       [habitId],
     );
   },
+  /** All completions whose date (YYYY-MM-DD) falls within [startKey, endKey]. */
+  async between(startKey: string, endKey: string): Promise<HabitCompletion[]> {
+    const conn = await db();
+    return conn.select<HabitCompletion[]>(
+      "SELECT * FROM habit_completions WHERE date >= $1 AND date <= $2 ORDER BY date",
+      [startKey, endKey],
+    );
+  },
   /** Mark a habit done for a day (idempotent on (habit_id, date)). */
   async set(habitId: string, date: string, count = 1): Promise<void> {
     const conn = await db();
@@ -355,6 +364,13 @@ export const events = {
     );
   },
   get: (id: string) => selectOne<CalEvent>("SELECT * FROM events WHERE id = $1", [id]),
+  async listAll(archived = false): Promise<CalEvent[]> {
+    const conn = await db();
+    return conn.select<CalEvent[]>(
+      "SELECT * FROM events WHERE archived = $1 ORDER BY start_at DESC",
+      [archived ? 1 : 0],
+    );
+  },
   async create(title: string, startAt: number): Promise<CalEvent> {
     const t = now();
     const row: CalEvent = {
@@ -422,6 +438,10 @@ export const peopleDates = {
 
 export const dailyHubs = {
   get: (date: string) => selectOne<DailyHub>("SELECT * FROM daily_hubs WHERE date = $1", [date]),
+  async listAll(): Promise<DailyHub[]> {
+    const conn = await db();
+    return conn.select<DailyHub[]>("SELECT * FROM daily_hubs ORDER BY date DESC");
+  },
   async listBetween(startKey: string, endKey: string): Promise<DailyHub[]> {
     const conn = await db();
     return conn.select<DailyHub[]>(
@@ -487,6 +507,29 @@ export const activity = {
       kind, title, detail: opts.detail ?? "", created_at: now(),
     });
   },
+};
+
+/* ------------------------------------------------------------ Attachments */
+// File metadata only; the bytes live on disk (app data dir) — see
+// platform.saveAttachmentFile / openAttachment.
+
+export const attachments = {
+  async forEntity(type: EntityType, id: string): Promise<Attachment[]> {
+    const conn = await db();
+    return conn.select<Attachment[]>(
+      "SELECT * FROM attachments WHERE entity_type = $1 AND entity_id = $2 ORDER BY created_at DESC",
+      [type, id],
+    );
+  },
+  async create(type: EntityType, id: string, file: { name: string; mime: string; size: number; path: string }): Promise<Attachment> {
+    const row: Attachment = {
+      id: uid(), entity_type: type, entity_id: id,
+      name: file.name, mime: file.mime, size: file.size, path: file.path, created_at: now(),
+    };
+    await insert("attachments", row);
+    return row;
+  },
+  remove: (id: string) => removeRow("attachments", id),
 };
 
 /* --------------------------------------------------------------- Demo data */
@@ -613,7 +656,7 @@ export async function exportData(): Promise<Record<string, unknown>> {
   const conn = await db();
   const tableNames = [
     "areas", "goals", "projects", "tasks", "notes", "habits", "habit_completions",
-    "events", "people", "people_dates", "daily_hubs", "links", "notifications", "activity",
+    "events", "people", "people_dates", "daily_hubs", "links", "notifications", "activity", "attachments",
   ];
   const tables: Record<string, unknown[]> = {};
   for (const t of tableNames) {

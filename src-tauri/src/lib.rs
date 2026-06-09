@@ -271,6 +271,25 @@ fn migrations() -> Vec<Migration> {
             "index_events_start",
             "CREATE INDEX IF NOT EXISTS idx_events_start ON events (start_at);",
         ),
+        m(
+            21,
+            "create_attachments",
+            "CREATE TABLE IF NOT EXISTS attachments (
+                id          TEXT PRIMARY KEY,
+                entity_type TEXT NOT NULL,
+                entity_id   TEXT NOT NULL,
+                name        TEXT NOT NULL,
+                mime        TEXT NOT NULL DEFAULT '',
+                size        INTEGER NOT NULL DEFAULT 0,
+                path        TEXT NOT NULL,
+                created_at  INTEGER NOT NULL
+            );",
+        ),
+        m(
+            22,
+            "index_attachments_entity",
+            "CREATE INDEX IF NOT EXISTS idx_attachments_entity ON attachments (entity_type, entity_id);",
+        ),
     ]
 }
 
@@ -285,6 +304,32 @@ fn export_backup(app: tauri::AppHandle, contents: String) -> Result<String, Stri
     Ok(path.to_string_lossy().to_string())
 }
 
+// Copy file bytes (picked in the webview) into the app data dir's `attachments/`
+// folder under a collision-proof name. Returns the absolute path for the DB row.
+#[tauri::command]
+fn save_attachment(app: tauri::AppHandle, name: String, bytes: Vec<u8>) -> Result<String, String> {
+    use std::time::{SystemTime, UNIX_EPOCH};
+    use tauri::Manager;
+    let dir = app
+        .path()
+        .app_data_dir()
+        .map_err(|e| e.to_string())?
+        .join("attachments");
+    std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+    let stamp = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|d| d.as_nanos())
+        .unwrap_or(0);
+    // Keep the original (sanitized) filename, prefixed with a unique stamp.
+    let safe: String = name
+        .chars()
+        .map(|c| if c.is_alphanumeric() || matches!(c, '.' | '-' | '_') { c } else { '_' })
+        .collect();
+    let path = dir.join(format!("{stamp}_{safe}"));
+    std::fs::write(&path, bytes).map_err(|e| e.to_string())?;
+    Ok(path.to_string_lossy().to_string())
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -296,7 +341,7 @@ pub fn run() {
                 .add_migrations("sqlite:dano_v1.db", migrations())
                 .build(),
         )
-        .invoke_handler(tauri::generate_handler![export_backup])
+        .invoke_handler(tauri::generate_handler![export_backup, save_attachment])
         .setup(|app| {
             // System tray with Show / Quit (desktop only).
             #[cfg(desktop)]

@@ -1,12 +1,12 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import PageHeader from "$lib/components/PageHeader.svelte";
-  import { habits as habitDb, habitCompletions, archiveEntity, restoreEntity } from "$lib/db";
+  import { habits as habitDb, habitCompletions, goals as goalDb, archiveEntity, restoreEntity } from "$lib/db";
   import { toasts } from "$lib/stores/toast.svelte";
   import { isTauri } from "$lib/platform";
   import { todayKey } from "$lib/date";
   import { streak, completionRate, recentDays } from "$lib/habits";
-  import type { Habit, HabitFrequency } from "$lib/types";
+  import type { Habit, HabitFrequency, Goal } from "$lib/types";
 
   const desktop = isTauri();
   const key = todayKey();
@@ -14,6 +14,7 @@
   const palette = ["#34d399", "#38bdf8", "#fbbf24", "#f87171", "#a78bfa", "#f472b6"];
 
   let habits = $state<Habit[]>([]);
+  let goals = $state<Goal[]>([]);
   let sets = $state<Record<string, Set<string>>>({});
   let loading = $state(true);
   let error = $state<string | null>(null);
@@ -28,7 +29,8 @@
     }
     try {
       loading = true;
-      const hs = await habitDb.list();
+      const [hs, gs] = await Promise.all([habitDb.list(), goalDb.list()]);
+      goals = gs;
       const map: Record<string, Set<string>> = {};
       // Sequential (not Promise.all): concurrent SQLite reads can deadlock the plugin.
       for (const h of hs) {
@@ -72,6 +74,10 @@
   }
   async function setFreq(h: Habit, frequency: HabitFrequency) {
     await habitDb.update(h.id, { frequency });
+    await load();
+  }
+  async function setGoal(h: Habit, goalId: string) {
+    await habitDb.update(h.id, { goal_id: goalId || null });
     await load();
   }
   async function remove(h: Habit) {
@@ -150,6 +156,10 @@
                     <option value="daily">daily</option>
                     <option value="weekly">weekly</option>
                     <option value="custom">custom</option>
+                  </select>
+                  <select value={r.h.goal_id ?? ""} onchange={(e) => setGoal(r.h, (e.currentTarget as HTMLSelectElement).value)} class="rounded bg-fg/5 px-1 py-0.5 text-[11px] text-fg/55 outline-none" title="Link to a goal">
+                    <option value="">no goal</option>
+                    {#each goals as g (g.id)}<option value={g.id}>🎯 {g.title}</option>{/each}
                   </select>
                 </div>
               </div>

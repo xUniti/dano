@@ -192,3 +192,14 @@ export interface Activity {
   detail: string;
   created_at: number;
 }
+
+export interface Attachment {
+  id: string;
+  entity_type: EntityType;
+  entity_id: string;
+  name: string;
+  mime: string;
+  size: number;
+  path: string; // absolute path on disk (app data dir)
+  created_at: number;
+}

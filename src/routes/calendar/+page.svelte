@@ -1,18 +1,18 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import PageHeader from "$lib/components/PageHeader.svelte";
-  import { events as eventDb, tasks as taskDb, people as peopleDb, projects as projectDb } from "$lib/db";
+  import { events as eventDb, tasks as taskDb, people as peopleDb, projects as projectDb, habits as habitDb, habitCompletions } from "$lib/db";
   import { isTauri } from "$lib/platform";
   import { todayKey, startOfDayMs, endOfDayMs } from "$lib/date";
   import { fullName } from "$lib/people";
-  import type { CalEvent, Task, Person, Project } from "$lib/types";
+  import type { CalEvent, Task, Person, Project, Habit, HabitCompletion } from "$lib/types";
 
   const desktop = isTauri();
   type View = "month" | "week" | "agenda" | "day";
   const views: View[] = ["month", "week", "agenda", "day"];
 
-  interface Item { kind: "event" | "task" | "birthday" | "project"; id: string; title: string; at: number; href?: string; }
-  const kindColor: Record<Item["kind"], string> = { event: "#38bdf8", task: "#fbbf24", birthday: "#f472b6", project: "#34d399" };
+  interface Item { kind: "event" | "task" | "birthday" | "project" | "habit"; id: string; title: string; at: number; href?: string; }
+  const kindColor: Record<Item["kind"], string> = { event: "#38bdf8", task: "#fbbf24", birthday: "#f472b6", project: "#34d399", habit: "#2dd4bf" };
 
   let view = $state<View>("month");
   let anchor = $state(new Date());
@@ -22,6 +22,8 @@
   let tasks = $state<Task[]>([]);
   let people = $state<Person[]>([]);
   let projects = $state<Project[]>([]);
+  let habits = $state<Habit[]>([]);
+  let comps = $state<HabitCompletion[]>([]);
 
   // new event
   let evTitle = $state("");
@@ -62,11 +64,13 @@
       return;
     }
     loading = true;
-    [events, tasks, people, projects] = await Promise.all([
+    [events, tasks, people, projects, habits, comps] = await Promise.all([
       eventDb.between(range.start, range.end),
       taskDb.listAll(),
       peopleDb.list(),
       projectDb.listAll(),
+      habitDb.list(),
+      habitCompletions.between(todayKey(new Date(range.start)), todayKey(new Date(range.end))),
     ]);
     loading = false;
   }
@@ -101,7 +105,15 @@
     const projItems: Item[] = projects
       .filter((p) => p.due_at != null && p.due_at >= range.start && p.due_at <= range.end)
       .map((p) => ({ kind: "project", id: p.id, title: p.name, at: p.due_at as number, href: `/projects/${p.id}` }));
-    return [...evItems, ...taskItems, ...projItems, ...birthdayItems()].sort((a, b) => a.at - b.at);
+    const habitName = new Map(habits.map((h) => [h.id, h.name]));
+    const habitItems: Item[] = comps.map((c) => ({
+      kind: "habit",
+      id: c.id,
+      title: `✓ ${habitName.get(c.habit_id) ?? "Habit"}`,
+      at: startOfDayMs(new Date(`${c.date}T00:00:00`)),
+      href: "/habits",
+    }));
+    return [...evItems, ...taskItems, ...projItems, ...habitItems, ...birthdayItems()].sort((a, b) => a.at - b.at);
   });
 
   function itemsOn(dayMs: number): Item[] {
@@ -170,7 +182,7 @@
   const todayK = todayKey();
 </script>
 
-<PageHeader title="Calendar" subtitle="Events · task deadlines · birthdays">
+<PageHeader title="Calendar" subtitle="Events · deadlines · habits · birthdays">
   <div class="flex items-center gap-2">
     <div class="flex rounded-lg border border-fg/10 p-0.5">
       {#each views as v (v)}

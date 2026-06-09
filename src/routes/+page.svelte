@@ -7,13 +7,13 @@
   import Skeleton from "$lib/components/Skeleton.svelte";
   import {
     tasks as taskDb, projects as projectDb, notes as noteDb, people as peopleDb,
-    habits as habitDb, habitCompletions, goals as goalDb, dailyHubs, linkTimestamps,
+    habits as habitDb, habitCompletions, goals as goalDb, events as eventDb, dailyHubs, linkTimestamps,
   } from "$lib/db";
   import { isTauri } from "$lib/platform";
   import { todayKey, startOfDayMs, dueLabel, isOverdue, endOfDayMs } from "$lib/date";
   import { streak, completionRate, recentDays } from "$lib/habits";
   import { fullName, isFollowUpDue, daysUntilBirthday } from "$lib/people";
-  import type { Task, Project, Person, Habit, Goal, DailyHub } from "$lib/types";
+  import type { Task, Project, Person, Habit, Goal, DailyHub, Note, CalEvent } from "$lib/types";
 
   const desktop = isTauri();
   const heading = new Intl.DateTimeFormat(undefined, { weekday: "long", month: "long", day: "numeric", year: "numeric" }).format(new Date());
@@ -24,26 +24,27 @@
   let loading = $state(true);
   let tasks = $state<Task[]>([]);
   let projects = $state<Project[]>([]);
-  let notes = $state<number>(0);
+  let noteList = $state<Note[]>([]);
   let people = $state<Person[]>([]);
   let habits = $state<Habit[]>([]);
   let habitSets = $state<Record<string, Set<string>>>({});
   let hubs = $state<DailyHub[]>([]);
   let goals = $state<Goal[]>([]);
+  let evts = $state<CalEvent[]>([]);
   let linkTs = $state<number[]>([]);
 
   async function load() {
     if (!desktop) { loading = false; return; }
     loading = true;
-    const [t, ps, ns, pe, hb, gs, lt, hubs30] = await Promise.all([
+    const [t, ps, ns, pe, hb, gs, ev, lt, hubs30] = await Promise.all([
       taskDb.listAll(), projectDb.listAll(), noteDb.list(), peopleDb.list(),
-      habitDb.list(), goalDb.list(), linkTimestamps(),
+      habitDb.list(), goalDb.list(), eventDb.listAll(), linkTimestamps(),
       dailyHubs.listBetween(days30[0], todayKey()),
     ]);
     const setMap: Record<string, Set<string>> = {};
     await Promise.all(hb.map(async (h) => { setMap[h.id] = new Set((await habitCompletions.forHabit(h.id)).map((c) => c.date)); }));
-    tasks = t; projects = ps; notes = ns.length; people = pe;
-    habits = hb; habitSets = setMap; goals = gs; linkTs = lt; hubs = hubs30;
+    tasks = t; projects = ps; noteList = ns; people = pe;
+    habits = hb; habitSets = setMap; goals = gs; evts = ev; linkTs = lt; hubs = hubs30;
     loading = false;
   }
   onMount(load);
@@ -53,6 +54,13 @@
   const overdue = $derived(tasks.filter((t) => t.status !== "done" && t.due_at != null && t.due_at < startOfDayMs()).length);
   const activeProjects = $derived(projects.filter((p) => p.status === "active"));
   const today = $derived(tasks.filter((t) => t.status !== "done" && t.due_at != null && t.due_at <= endOfDayMs()).slice(0, 6));
+  const notesCount = $derived(noteList.length);
+  const recentNotes = $derived(noteList.slice(0, 5));
+  const upcomingEvents = $derived(
+    evts.filter((e) => e.start_at >= startOfDayMs()).sort((a, b) => a.start_at - b.start_at).slice(0, 5),
+  );
+  const topProjects = $derived(activeProjects.slice().sort((a, b) => b.progress - a.progress).slice(0, 5));
+  const todayHub = $derived(hubs.find((h) => h.date === todayKey()) ?? null);
 
   const completedByDay = $derived(days14.map((k) => tasks.filter((t) => t.completed_at != null && todayKey(new Date(t.completed_at)) === k).length));
   const completedWeek = $derived(completedByDay.slice(-7).reduce((a, b) => a + b, 0));
@@ -113,7 +121,7 @@
         ["Overdue", overdue, overdue > 0 ? "text-red-300" : "text-fg/90"],
         ["Projects", activeProjects.length, "text-fg/90"],
         ["People", people.length, "text-fg/90"],
-        ["Notes", notes, "text-fg/90"],
+        ["Notes", notesCount, "text-fg/90"],
       ] as [label, value, cls] (label)}
         <div class="rounded-xl border border-fg/10 bg-fg/[0.02] p-3">
           <div class="text-2xl font-semibold {cls}">{value}</div>
@@ -139,7 +147,14 @@
         <Sparkline data={moodSeries} color="var(--accent)" min={0} max={10} height={38} />
         <div class="mb-1 mt-3 flex items-center justify-between text-xs text-fg/50"><span>Energy</span><span class="text-fg/80">avg {avgEnergy}/10</span></div>
         <Sparkline data={energySeries} color="#34d399" min={0} max={10} height={38} />
-        <div class="mt-2 text-[11px] text-fg/35">Last 30 days</div>
+        <div class="mt-2 border-t border-fg/10 pt-2 text-[11px] text-fg/35">
+          {#if todayHub && (todayHub.journal || todayHub.mood != null)}
+            <span class="text-fg/50">Today:</span>
+            {todayHub.mood != null ? `mood ${todayHub.mood}/10 · ` : ""}{todayHub.journal ? `“${todayHub.journal.slice(0, 60)}${todayHub.journal.length > 60 ? "…" : ""}”` : "no journal yet"}
+          {:else}
+            Last 30 days · open today’s hub to reflect
+          {/if}
+        </div>
       </DashCard>
 
       <!-- Relationships & graph -->
@@ -203,7 +218,7 @@
       </DashCard>
 
       <!-- Goal progress -->
-      <DashCard title="Goal Progress">
+      <DashCard title="Goal Progress" href="/goals">
         {#if goalProg.length === 0}
           <p class="text-xs text-fg/30">No goals yet. Link goals from a project.</p>
         {:else}
@@ -213,6 +228,58 @@
                 <div class="flex items-center justify-between gap-2"><span class="truncate text-sm text-fg/85">{gp.g.title}</span><span class="text-[10px] tabular-nums text-fg/40">{gp.progress}%</span></div>
                 <div class="mt-1 h-1.5 overflow-hidden rounded-full bg-fg/10"><div class="h-full rounded-full bg-indigo-400/80" style="width:{gp.progress}%"></div></div>
               </div>
+            {/each}
+          </div>
+        {/if}
+      </DashCard>
+    </div>
+
+    <div class="grid gap-3 lg:grid-cols-3">
+      <!-- Active projects -->
+      <DashCard title="Active Projects" href="/projects">
+        {#if topProjects.length === 0}
+          <p class="text-xs text-fg/30">No active projects.</p>
+        {:else}
+          <div class="space-y-2.5">
+            {#each topProjects as p (p.id)}
+              <a href="/projects/{p.id}" class="block">
+                <div class="flex items-center justify-between gap-2"><span class="truncate text-sm text-fg/85">{p.name}</span><span class="text-[10px] tabular-nums text-fg/40">{p.progress}%</span></div>
+                <div class="mt-1 h-1.5 overflow-hidden rounded-full bg-fg/10"><div class="h-full rounded-full bg-accent/70" style="width:{p.progress}%"></div></div>
+              </a>
+            {/each}
+          </div>
+        {/if}
+      </DashCard>
+
+      <!-- Upcoming events -->
+      <DashCard title="Upcoming Events" href="/calendar">
+        {#if upcomingEvents.length === 0}
+          <p class="text-xs text-fg/30">Nothing scheduled.</p>
+        {:else}
+          <div class="space-y-1.5">
+            {#each upcomingEvents as e (e.id)}
+              <div class="flex items-center gap-2">
+                <span class="h-1.5 w-1.5 shrink-0 rounded-full" style="background:#38bdf8"></span>
+                <span class="flex-1 truncate text-sm text-fg/85">{e.title}</span>
+                <span class="text-[11px] text-fg/35">{dueLabel(e.start_at)}</span>
+              </div>
+            {/each}
+          </div>
+        {/if}
+      </DashCard>
+
+      <!-- Knowledge feed -->
+      <DashCard title="Knowledge Feed" href="/notes">
+        {#if recentNotes.length === 0}
+          <p class="text-xs text-fg/30">No notes yet.</p>
+        {:else}
+          <div class="space-y-1.5">
+            {#each recentNotes as n (n.id)}
+              <a href="/notes?id={n.id}" class="flex items-center gap-2">
+                <span class="text-fg/30">📝</span>
+                <span class="flex-1 truncate text-sm text-fg/85">{n.title || "Untitled"}</span>
+                {#if n.tags}<span class="shrink-0 text-[10px] text-fg/30">{n.tags.split(",")[0]}</span>{/if}
+              </a>
             {/each}
           </div>
         {/if}
