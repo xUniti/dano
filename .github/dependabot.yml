@@ -6,6 +6,10 @@ updates:
     schedule:
       interval: "weekly"
     open-pull-requests-limit: 5
+    groups:
+      # Bundle all safe (minor/patch) updates into ONE PR; majors stay separate to review.
+      npm-minor-patch:
+        update-types: ["minor", "patch"]
 
   # Rust / Tauri dependencies
   - package-ecosystem: "cargo"
@@ -13,9 +17,15 @@ updates:
     schedule:
       interval: "weekly"
     open-pull-requests-limit: 5
+    groups:
+      cargo-minor-patch:
+        update-types: ["minor", "patch"]
 
   # The GitHub Actions used in our workflows (fixes Node-version deprecations over time)
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
       interval: "weekly"
+    groups:
+      actions-minor-patch:
+        update-types: ["minor", "patch"]
