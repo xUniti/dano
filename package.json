@@ -1,6 +1,6 @@
 {
   "name": "dano",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "DANO OS — a local-first Life Operating System (tasks, projects, notes, people, habits, goals, daily hub). Built with Tauri + SvelteKit.",
   "type": "module",
   "scripts": {

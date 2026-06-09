@@ -1,0 +1,71 @@
+name: release
+
+# Builds installers for Linux, Windows and macOS and publishes a GitHub Release
+# whenever you push a version tag like v0.2.0. No tag → nothing happens.
+on:
+  push:
+    tags:
+      - "v*"
+
+# tauri-action needs write access to create the Release and upload assets.
+permissions:
+  contents: write
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: ubuntu-22.04
+            args: ""
+          - platform: windows-latest
+            args: ""
+          - platform: macos-latest
+            args: "--target universal-apple-darwin"
+    runs-on: ${{ matrix.platform }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.platform == 'macos-latest' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
+
+      - name: Cache cargo
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: "./src-tauri -> target"
+
+      - name: Install Linux dependencies
+        if: matrix.platform == 'ubuntu-22.04'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+
+      - name: Install frontend dependencies
+        run: npm ci
+
+      - name: Build and publish release
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tagName: ${{ github.ref_name }}
+          releaseName: "DANO ${{ github.ref_name }}"
+          releaseBody: |
+            Download the installer for your OS below.
+
+            - **Linux**: `.AppImage` (chmod +x and run) or `.deb`
+            - **Windows**: `-setup.exe` — on the SmartScreen prompt click *More info → Run anyway*
+            - **macOS**: `.dmg` — right-click the app → *Open* the first time
+          releaseDraft: false
+          prerelease: false
+          args: ${{ matrix.args }}

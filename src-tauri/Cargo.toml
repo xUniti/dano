@@ -1,6 +1,6 @@
 [package]
 name = "dano"
-version = "0.1.0"
+version = "0.2.0"
 description = "DANO OS — local-first Life Operating System"
 authors = ["xUniti"]
 edition = "2021"

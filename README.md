@@ -78,7 +78,19 @@ DANO is **local-first**. Your entire life lives in a local SQLite database **on 
 
 ---
 
-## Run it
+## Install
+
+Grab the latest installer for your OS from the **[Releases page](https://github.com/xUniti/dano/releases/latest)**:
+
+| OS | Download | How to install |
+|----|----------|----------------|
+| **Linux** | `.AppImage` | `chmod +x DANO_*.AppImage` then double-click — no install needed. Or use the `.deb` (Debian/Ubuntu) / `.rpm` (Fedora). |
+| **Windows** | `*-setup.exe` | Double-click. On the *"Windows protected your PC"* prompt, click **More info → Run anyway**. |
+| **macOS** | `.dmg` | Open it and drag DANO to Applications. First launch: **right-click the app → Open**. |
+
+> The builds aren't code-signed yet, so Windows and macOS show a one-time "unknown developer" warning. It's safe to bypass as above. Signed installers + auto-update are on the roadmap.
+
+## Run it (from source)
 
 ```bash
 npm install
