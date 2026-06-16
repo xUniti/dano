@@ -1,0 +1,277 @@
+/* DANO design system — tokens + base.
+   Warm-neutral palette, single sage accent. Compact by default, density adjustable.
+   Everything theme-able and accessibility-first (the north star). */
+
+/* ---------- Color tokens ---------- */
+:root {
+	--bg: #fbfbf9;
+	--surface-1: #ffffff;
+	--surface-2: #f5f5f1;
+	--surface-3: #eeeee8;
+
+	--text-1: #20251f;
+	--text-2: #6b6f68;
+	--text-3: #9a9e97;
+	--text-on-accent: #ffffff;
+
+	--border: rgba(24, 32, 22, 0.1);
+	--border-strong: rgba(24, 32, 22, 0.18);
+
+	--accent: #6f9c71;
+	--accent-hover: #5f8b62;
+	--accent-strong: #46703f; /* text/icons on light surfaces */
+	--accent-tint: #ebf1e9; /* tinted backgrounds */
+
+	--danger: #b3423b;
+	--danger-tint: #f7e7e5;
+	--warning: #9a6a0c;
+	--warning-tint: #f6ecd7;
+	--success: #4d7a45;
+	--success-tint: #e8f0e4;
+	--info: #3a6da6;
+	--info-tint: #e6eef6;
+
+	--shadow-1: 0 1px 2px rgba(24, 32, 22, 0.06), 0 1px 1px rgba(24, 32, 22, 0.04);
+	--shadow-2: 0 6px 18px rgba(24, 32, 22, 0.12);
+}
+
+/* Dark theme: applied on explicit choice OR when system is dark and not forced light. */
+@media (prefers-color-scheme: dark) {
+	:root:not([data-theme='light']) {
+		--bg: #141513;
+		--surface-1: #1c1e1a;
+		--surface-2: #24261f;
+		--surface-3: #2d2f27;
+
+		--text-1: #ecede7;
+		--text-2: #a7aaa1;
+		--text-3: #797c74;
+		--text-on-accent: #14160f;
+
+		--border: rgba(255, 255, 255, 0.1);
+		--border-strong: rgba(255, 255, 255, 0.2);
+
+		--accent: #8fbc84;
+		--accent-hover: #9ec793;
+		--accent-strong: #b6d6ac;
+		--accent-tint: #23301f;
+
+		--danger: #e07b73;
+		--danger-tint: #3a201e;
+		--warning: #d4a24a;
+		--warning-tint: #332a17;
+		--success: #8fbc84;
+		--success-tint: #20301d;
+		--info: #7aa9d8;
+		--info-tint: #1b2937;
+
+		--shadow-1: 0 1px 2px rgba(0, 0, 0, 0.4);
+		--shadow-2: 0 8px 24px rgba(0, 0, 0, 0.5);
+	}
+}
+[data-theme='dark'] {
+	--bg: #141513;
+	--surface-1: #1c1e1a;
+	--surface-2: #24261f;
+	--surface-3: #2d2f27;
+	--text-1: #ecede7;
+	--text-2: #a7aaa1;
+	--text-3: #797c74;
+	--text-on-accent: #14160f;
+	--border: rgba(255, 255, 255, 0.1);
+	--border-strong: rgba(255, 255, 255, 0.2);
+	--accent: #8fbc84;
+	--accent-hover: #9ec793;
+	--accent-strong: #b6d6ac;
+	--accent-tint: #23301f;
+	--danger: #e07b73;
+	--danger-tint: #3a201e;
+	--warning: #d4a24a;
+	--warning-tint: #332a17;
+	--success: #8fbc84;
+	--success-tint: #20301d;
+	--info: #7aa9d8;
+	--info-tint: #1b2937;
+	--shadow-1: 0 1px 2px rgba(0, 0, 0, 0.4);
+	--shadow-2: 0 8px 24px rgba(0, 0, 0, 0.5);
+}
+
+/* High-contrast option (user toggle): strengthen borders + text. */
+[data-contrast='high'] {
+	--text-2: var(--text-1);
+	--text-3: var(--text-2);
+	--border: var(--border-strong);
+	--border-strong: currentColor;
+}
+
+/* ---------- Spacing (compact; scales with density) ---------- */
+:root {
+	--density: 1; /* compact */
+	--space-1: 2px;
+	--space-2: 4px;
+	--space-3: 6px;
+	--space-4: 8px;
+	--space-5: 12px;
+	--space-6: 16px;
+	--space-7: 24px;
+	--space-8: 32px;
+
+	--row-pad-y: calc(8px * var(--density));
+	--row-pad-x: calc(11px * var(--density));
+	--control-h: calc(32px * var(--density));
+
+	/* Minimum hit target. Bumped by the "large targets" a11y setting. */
+	--tap-min: 0px;
+}
+[data-density='comfortable'] {
+	--density: 1.35;
+}
+[data-targets='large'] {
+	--tap-min: 44px;
+}
+
+/* ---------- Typography (rem-based so text scaling + OS size work) ---------- */
+:root {
+	--font-sans:
+		-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+	--font-mono: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace;
+
+	--text-xs: 0.6875rem; /* 11 */
+	--text-sm: 0.75rem; /* 12 */
+	--text-base: 0.8125rem; /* 13 */
+	--text-md: 0.9375rem; /* 15 */
+	--text-lg: 1.0625rem; /* 17 */
+	--text-xl: 1.25rem; /* 20 */
+	--text-2xl: 1.5rem; /* 24 */
+
+	--leading-tight: 1.3;
+	--leading: 1.5;
+	--weight-regular: 400;
+	--weight-medium: 500;
+
+	--letter: 0;
+}
+
+/* Reading-comfort options (dyslexia / low vision). Independent toggles. */
+[data-text-spacing='loose'] {
+	--letter: 0.03em;
+	--leading: 1.7;
+	--leading-tight: 1.45;
+}
+[data-dyslexia-font='on'] {
+	--font-sans:
+		'OpenDyslexic', 'Atkinson Hyperlegible', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+}
+
+/* ---------- Shape & motion ---------- */
+:root {
+	--radius-1: 4px;
+	--radius-2: 6px;
+	--radius-3: 8px;
+	--radius-4: 12px;
+	--radius-pill: 999px;
+	--border-w: 0.5px;
+
+	--motion-fast: 120ms;
+	--motion: 200ms;
+	--ease: cubic-bezier(0.2, 0.6, 0.2, 1);
+}
+
+/* ---------- Base ---------- */
+*,
+*::before,
+*::after {
+	box-sizing: border-box;
+}
+html {
+	font-size: 100%; /* respects OS/browser size; text-size slider overrides via inline style */
+}
+body {
+	margin: 0;
+	background: var(--bg);
+	color: var(--text-1);
+	font-family: var(--font-sans);
+	font-size: var(--text-base);
+	line-height: var(--leading);
+	letter-spacing: var(--letter);
+	-webkit-font-smoothing: antialiased;
+	text-rendering: optimizeLegibility;
+}
+
+/* Shorter line length option for long-form reading. */
+[data-line-length='short'] .prose {
+	max-width: 62ch;
+}
+
+h1,
+h2,
+h3,
+h4 {
+	font-weight: var(--weight-medium);
+	line-height: var(--leading-tight);
+	margin: 0;
+}
+
+a {
+	color: var(--accent-strong);
+}
+
+/* Visible, consistent focus for keyboard users (never remove). */
+:focus-visible {
+	outline: 2px solid var(--accent);
+	outline-offset: 2px;
+	border-radius: var(--radius-1);
+}
+:focus:not(:focus-visible) {
+	outline: none;
+}
+
+/* Respect reduced motion — system preference AND explicit user toggle. */
+@media (prefers-reduced-motion: reduce) {
+	*,
+	*::before,
+	*::after {
+		animation-duration: 0.01ms !important;
+		animation-iteration-count: 1 !important;
+		transition-duration: 0.01ms !important;
+		scroll-behavior: auto !important;
+	}
+}
+[data-motion='off'] *,
+[data-motion='off'] *::before,
+[data-motion='off'] *::after {
+	animation: none !important;
+	transition: none !important;
+}
+
+/* Skip link — first stop for keyboard/screen-reader users. */
+.skip-link {
+	position: absolute;
+	left: var(--space-4);
+	top: var(--space-4);
+	z-index: 100;
+	padding: var(--space-3) var(--space-5);
+	background: var(--surface-1);
+	color: var(--text-1);
+	border: var(--border-w) solid var(--border-strong);
+	border-radius: var(--radius-3);
+	box-shadow: var(--shadow-2);
+	transform: translateY(-150%);
+	transition: transform var(--motion) var(--ease);
+}
+.skip-link:focus {
+	transform: translateY(0);
+}
+
+/* Screen-reader only utility. */
+.sr-only {
+	position: absolute;
+	width: 1px;
+	height: 1px;
+	padding: 0;
+	margin: -1px;
+	overflow: hidden;
+	clip: rect(0, 0, 0, 0);
+	white-space: nowrap;
+	border: 0;
+}
