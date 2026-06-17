@@ -3,6 +3,7 @@
 	import { PRIORITIES } from '$lib/tasks/types';
 	import { tasks } from '$lib/tasks/store.svelte';
 	import { persona } from '$lib/persona/store.svelte';
+	import { notes as noteStore } from '$lib/notes/store.svelte';
 	import { fullName } from '$lib/persona/types';
 	import { page } from '$app/state';
 	import { goto } from '$app/navigation';
@@ -38,6 +39,7 @@
 	}
 
 	const contact = $derived(task?.personaId ? persona.get(task.personaId) : undefined);
+	const linkedNotes = $derived(task ? noteStore.notes.filter((n) => n.taskId === task.id) : []);
 </script>
 
 <div class="page">
@@ -98,10 +100,18 @@
 				<FolderKanban size={16} strokeWidth={1.75} aria-hidden="true" />
 				<span>Project — linking arrives with the Projects phase.</span>
 			</div>
-			<div class="link muted">
-				<StickyNote size={16} strokeWidth={1.75} aria-hidden="true" />
-				<span>Notes — linking arrives with the Notes phase.</span>
-			</div>
+			{#each linkedNotes as n (n.id)}
+				<a class="link" href="/notes/{n.id}">
+					<StickyNote size={16} strokeWidth={1.75} aria-hidden="true" />
+					<span>{n.title || 'Untitled note'}</span>
+				</a>
+			{/each}
+			{#if linkedNotes.length === 0}
+				<div class="link muted">
+					<StickyNote size={16} strokeWidth={1.75} aria-hidden="true" />
+					<span>No linked notes yet — link this task from a note.</span>
+				</div>
+			{/if}
 			{#if contact}
 				<a class="link" href="/persona?id={contact.id}">
 					<User size={16} strokeWidth={1.75} aria-hidden="true" />
