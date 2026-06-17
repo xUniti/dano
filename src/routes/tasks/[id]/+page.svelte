@@ -4,6 +4,7 @@
 	import { tasks } from '$lib/tasks/store.svelte';
 	import { persona } from '$lib/persona/store.svelte';
 	import { notes as noteStore } from '$lib/notes/store.svelte';
+	import { projects } from '$lib/projects/store.svelte';
 	import { fullName } from '$lib/persona/types';
 	import { page } from '$app/state';
 	import { goto } from '$app/navigation';
@@ -16,6 +17,7 @@
 	let due = $state('');
 	let priority = $state<'none' | Priority>('none');
 	let personaId = $state('');
+	let projectId = $state('');
 	let notes = $state('');
 
 	let loadedId = '';
@@ -26,6 +28,7 @@
 			due = task.dueDate ?? '';
 			priority = task.priority ?? 'none';
 			personaId = task.personaId ?? '';
+			projectId = task.projectId ?? '';
 			notes = task.notes ?? '';
 		}
 	});
@@ -82,6 +85,13 @@
 					{#each persona.people as p (p.id)}<option value={p.id}>{fullName(p)}</option>{/each}
 				</select>
 			</div>
+			<div class="drow">
+				<span class="k"><FolderKanban size={14} strokeWidth={1.75} aria-hidden="true" /> Project</span>
+				<select class="v" bind:value={projectId} onchange={() => persist({ projectId: projectId || null })}>
+					<option value="">— None —</option>
+					{#each projects.projects as p (p.id)}<option value={p.id}>{p.name || 'Untitled project'}</option>{/each}
+				</select>
+			</div>
 		</section>
 
 		<section class="block">
@@ -96,10 +106,6 @@
 
 		<section class="block">
 			<h2>Linked</h2>
-			<div class="link muted">
-				<FolderKanban size={16} strokeWidth={1.75} aria-hidden="true" />
-				<span>Project — linking arrives with the Projects phase.</span>
-			</div>
 			{#each linkedNotes as n (n.id)}
 				<a class="link" href="/notes/{n.id}">
 					<StickyNote size={16} strokeWidth={1.75} aria-hidden="true" />

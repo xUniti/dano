@@ -95,6 +95,10 @@
 			goto(`/tasks/${item.eventId}`);
 			return;
 		}
+		if (item.source === 'project') {
+			goto(`/projects/${item.eventId}`);
+			return;
+		}
 		openEdit(item.eventId);
 	}
 	function closeSheet() {

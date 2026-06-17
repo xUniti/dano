@@ -39,8 +39,8 @@ export type CalendarItem = {
 	end: Date;
 	allDay: boolean;
 	color: string | null;
-	source: string; // 'local' | 'persona' | 'task' | future provider ids
-	kind: 'event' | 'birthday' | 'task'; // future: 'habit' | ...
+	source: string; // 'local' | 'persona' | 'task' | 'project' | future provider ids
+	kind: 'event' | 'birthday' | 'task' | 'project'; // future: 'habit' | ...
 	editable: boolean;
 };
 

@@ -2,6 +2,7 @@
 	import { notes } from '$lib/notes/store.svelte';
 	import { tasks } from '$lib/tasks/store.svelte';
 	import { persona } from '$lib/persona/store.svelte';
+	import { projects } from '$lib/projects/store.svelte';
 	import { fullName } from '$lib/persona/types';
 	import { page } from '$app/state';
 	import { goto } from '$app/navigation';
@@ -16,6 +17,7 @@
 	let tags = $state<string[]>([]);
 	let taskId = $state('');
 	let personaId = $state('');
+	let projectId = $state('');
 	let tagDraft = $state('');
 
 	let loadedId = '';
@@ -27,6 +29,7 @@
 			tags = [...note.tags];
 			taskId = note.taskId ?? '';
 			personaId = note.personaId ?? '';
+			projectId = note.projectId ?? '';
 		}
 	});
 
@@ -111,9 +114,12 @@
 					{#each persona.people as p (p.id)}<option value={p.id}>{fullName(p)}</option>{/each}
 				</select>
 			</div>
-			<div class="link muted">
+			<div class="link">
 				<span class="k"><FolderKanban size={14} strokeWidth={1.75} aria-hidden="true" /> Project</span>
-				<span class="soon">arrives with Projects</span>
+				<select class="v" bind:value={projectId} onchange={() => persist({ projectId: projectId || null })}>
+					<option value="">— None —</option>
+					{#each projects.projects as p (p.id)}<option value={p.id}>{p.name || 'Untitled project'}</option>{/each}
+				</select>
 			</div>
 			<div class="link muted">
 				<span class="k"><Layers size={14} strokeWidth={1.75} aria-hidden="true" /> Area</span>
