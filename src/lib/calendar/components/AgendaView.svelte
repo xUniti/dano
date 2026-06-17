@@ -6,7 +6,7 @@
 	let {
 		items,
 		onSelect
-	}: { items: CalendarItem[]; onSelect: (eventId: string) => void } = $props();
+	}: { items: CalendarItem[]; onSelect: (item: CalendarItem) => void } = $props();
 
 	type Group = { key: string; date: Date; items: CalendarItem[] };
 	const groups = $derived.by(() => {
@@ -36,7 +36,7 @@
 				<ul>
 					{#each g.items as it (it.key)}
 						<li>
-							<button class="item" onclick={() => onSelect(it.eventId)}>
+							<button class="item" onclick={() => onSelect(it)}>
 								<span class="bar" style="background: {it.color ?? 'var(--accent)'}"></span>
 								<span class="time">{it.allDay ? 'All day' : fmtTime(it.start)}</span>
 								<span class="title">{it.title}</span>

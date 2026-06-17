@@ -1,5 +1,6 @@
 <script lang="ts">
-	import type { CalendarView, CalendarEvent } from '$lib/calendar/types';
+	import type { CalendarView, CalendarEvent, CalendarItem } from '$lib/calendar/types';
+	import { goto } from '$app/navigation';
 	import { itemsInRange } from '$lib/calendar/sources';
 	import { calendar } from '$lib/calendar/store.svelte';
 	import {
@@ -83,6 +84,19 @@
 		createDate = null;
 		sheetOpen = true;
 	}
+	// Items can come from other sources (e.g. a person's birthday). Route those to
+	// their owner instead of the event editor.
+	function selectItem(item: CalendarItem) {
+		if (item.source === 'persona') {
+			goto(`/persona?id=${item.eventId}`);
+			return;
+		}
+		if (item.source === 'task') {
+			goto(`/tasks/${item.eventId}`);
+			return;
+		}
+		openEdit(item.eventId);
+	}
 	function closeSheet() {
 		sheetOpen = false;
 		editing = null;
@@ -112,14 +126,14 @@
 	/>
 
 	{#if view === 'month'}
-		<MonthView {cursor} {items} onPickDate={activateDate} onSelect={openEdit} {isMobile} />
+		<MonthView {cursor} {items} onPickDate={activateDate} onSelect={selectItem} {isMobile} />
 	{:else if view === 'agenda'}
-		<AgendaView {items} onSelect={openEdit} />
+		<AgendaView {items} onSelect={selectItem} />
 	{:else if view === 'day'}
 		<TimeGrid
 			days={[startOfDay(cursor)]}
 			{items}
-			onSelect={openEdit}
+			onSelect={selectItem}
 			onPickDate={openNew}
 			onCreateAt={openNew}
 			isMobile={false}
@@ -128,7 +142,7 @@
 		<TimeGrid
 			days={weekDays}
 			{items}
-			onSelect={openEdit}
+			onSelect={selectItem}
 			onPickDate={activateDate}
 			onCreateAt={openNew}
 			{isMobile}

@@ -20,7 +20,7 @@
 		cursor: Date;
 		items: CalendarItem[];
 		onPickDate: (date: Date) => void;
-		onSelect: (eventId: string) => void;
+		onSelect: (item: CalendarItem) => void;
 		isMobile?: boolean;
 	} = $props();
 
@@ -57,14 +57,14 @@
 				</button>
 				<div class="items">
 					{#each dayItems.slice(0, 3) as it (it.key)}
-						<button class="chip" onclick={() => onSelect(it.eventId)} title={it.title}>
+						<button class="chip" onclick={() => onSelect(it)} title={it.title}>
 							<span class="dot" style="background: {it.color ?? 'var(--accent)'}"></span>
 							{#if !it.allDay}<span class="t">{fmtTime(it.start)}</span>{/if}
 							<span class="n">{it.title}</span>
 						</button>
 					{/each}
 					{#if dayItems.length > 3}
-						<button class="more" onclick={() => onSelect(dayItems[3].eventId)}>
+						<button class="more" onclick={() => onSelect(dayItems[3])}>
 							+{dayItems.length - 3} more
 						</button>
 					{/if}

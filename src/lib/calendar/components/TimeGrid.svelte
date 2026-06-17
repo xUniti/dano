@@ -12,7 +12,7 @@
 	}: {
 		days: Date[];
 		items: CalendarItem[];
-		onSelect: (eventId: string) => void;
+		onSelect: (item: CalendarItem) => void;
 		onPickDate: (date: Date) => void;
 		onCreateAt: (date: Date) => void;
 		isMobile?: boolean;
@@ -61,7 +61,7 @@
 		{#each days as day (day.toISOString())}
 			<div class="ad-col">
 				{#each allDay(day) as it (it.key)}
-					<button class="ad" style="--c: {it.color ?? 'var(--accent)'}" onclick={() => onSelect(it.eventId)}>
+					<button class="ad" style="--c: {it.color ?? 'var(--accent)'}" onclick={() => onSelect(it)}>
 						{it.title}
 					</button>
 				{/each}
@@ -95,7 +95,7 @@
 						<button
 							class="ev"
 							style="top: {top(it)}px; height: {height(it)}px; --c: {it.color ?? 'var(--accent)'}"
-							onclick={() => onSelect(it.eventId)}
+							onclick={() => onSelect(it)}
 						>
 							<span class="t">{fmtTime(it.start)}</span>
 							<span class="n">{it.title}</span>
