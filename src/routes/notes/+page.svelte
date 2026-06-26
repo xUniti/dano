@@ -14,6 +14,7 @@
 	const filtered = $derived(
 		notes.notes
 			.filter((n) => {
+				if (n.archived) return false;
 				if (q.trim()) {
 					const hay = `${n.title} ${n.body} ${n.tags.join(' ')}`.toLowerCase();
 					if (!hay.includes(q.trim().toLowerCase())) return false;

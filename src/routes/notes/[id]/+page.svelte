@@ -8,7 +8,7 @@
 	import { goto } from '$app/navigation';
 	import { Button } from '$lib/ui';
 	import MarkdownEditor from '$lib/notes/components/MarkdownEditor.svelte';
-	import { ChevronLeft, Trash2, X, ListChecks, User, FolderKanban, Layers } from '@lucide/svelte';
+	import { ChevronLeft, Trash2, X, ListChecks, User, FolderKanban, Layers, Archive } from '@lucide/svelte';
 
 	const note = $derived(notes.get(page.params.id ?? ''));
 
@@ -52,6 +52,10 @@
 	}
 	function del() {
 		if (note) notes.remove(note.id);
+		goto('/notes');
+	}
+	function archive() {
+		if (note) notes.update(note.id, { archived: true });
 		goto('/notes');
 	}
 </script>
@@ -128,6 +132,7 @@
 		</section>
 
 		<div class="footer">
+			<Button icon={Archive} onclick={archive}>Archive</Button>
 			<Button variant="danger" icon={Trash2} onclick={del}>Delete note</Button>
 		</div>
 	{/if}
@@ -253,6 +258,8 @@
 		color: var(--text-3);
 	}
 	.footer {
+		display: flex;
+		gap: var(--space-3);
 		margin-top: var(--space-7);
 	}
 	.empty {

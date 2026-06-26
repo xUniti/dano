@@ -5,11 +5,12 @@
 	import { persona } from '$lib/persona/store.svelte';
 	import { notes as noteStore } from '$lib/notes/store.svelte';
 	import { projects } from '$lib/projects/store.svelte';
+	import { areas } from '$lib/areas/store.svelte';
 	import { fullName } from '$lib/persona/types';
 	import { page } from '$app/state';
 	import { goto } from '$app/navigation';
 	import { Checkbox, Button } from '$lib/ui';
-	import { ChevronLeft, Trash2, FolderKanban, StickyNote, User } from '@lucide/svelte';
+	import { ChevronLeft, Trash2, FolderKanban, StickyNote, User, Layers, Archive } from '@lucide/svelte';
 
 	const task = $derived(tasks.get(page.params.id ?? ''));
 
@@ -18,6 +19,7 @@
 	let priority = $state<'none' | Priority>('none');
 	let personaId = $state('');
 	let projectId = $state('');
+	let areaId = $state('');
 	let notes = $state('');
 
 	let loadedId = '';
@@ -29,6 +31,7 @@
 			priority = task.priority ?? 'none';
 			personaId = task.personaId ?? '';
 			projectId = task.projectId ?? '';
+			areaId = task.areaId ?? '';
 			notes = task.notes ?? '';
 		}
 	});
@@ -40,9 +43,15 @@
 		if (task) tasks.remove(task.id);
 		goto('/tasks');
 	}
+	function archive() {
+		if (task) tasks.update(task.id, { archived: true });
+		goto('/tasks');
+	}
 
 	const contact = $derived(task?.personaId ? persona.get(task.personaId) : undefined);
-	const linkedNotes = $derived(task ? noteStore.notes.filter((n) => n.taskId === task.id) : []);
+	const linkedNotes = $derived(
+		task ? noteStore.notes.filter((n) => n.taskId === task.id && !n.archived) : []
+	);
 </script>
 
 <div class="page">
@@ -92,6 +101,13 @@
 					{#each projects.projects as p (p.id)}<option value={p.id}>{p.name || 'Untitled project'}</option>{/each}
 				</select>
 			</div>
+			<div class="drow">
+				<span class="k"><Layers size={14} strokeWidth={1.75} aria-hidden="true" /> Area</span>
+				<select class="v" bind:value={areaId} onchange={() => persist({ areaId: areaId || null })}>
+					<option value="">— None —</option>
+					{#each areas.areas as a (a.id)}<option value={a.id}>{a.name}</option>{/each}
+				</select>
+			</div>
 		</section>
 
 		<section class="block">
@@ -127,6 +143,7 @@
 		</section>
 
 		<div class="footer">
+			<Button icon={Archive} onclick={archive}>Archive</Button>
 			<Button variant="danger" icon={Trash2} onclick={del}>Delete task</Button>
 		</div>
 	{/if}
@@ -263,6 +280,8 @@
 		color: var(--text-3);
 	}
 	.footer {
+		display: flex;
+		gap: var(--space-3);
 		margin-top: var(--space-7);
 	}
 	.empty {

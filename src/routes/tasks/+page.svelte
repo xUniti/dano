@@ -11,7 +11,9 @@
 	const today = ymd(new Date());
 
 	const sorted = $derived(
-		[...tasks.tasks].sort((a, b) => {
+		tasks.tasks
+			.filter((t) => !t.archived)
+			.sort((a, b) => {
 			if (a.done !== b.done) return a.done ? 1 : -1;
 			const ad = a.dueDate ?? '9999-99-99';
 			const bd = b.dueDate ?? '9999-99-99';

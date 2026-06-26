@@ -2,12 +2,15 @@
 	import { projects } from '$lib/projects/store.svelte';
 	import { PROJECT_STATUSES } from '$lib/projects/types';
 	import { tasks } from '$lib/tasks/store.svelte';
+	import { areas } from '$lib/areas/store.svelte';
 	import { goto } from '$app/navigation';
 	import { Button, Badge } from '$lib/ui';
 	import { Plus, Calendar } from '@lucide/svelte';
 
 	const sorted = $derived(
-		[...projects.projects].sort((a, b) => {
+		projects.projects
+			.filter((p) => !p.archived)
+			.sort((a, b) => {
 			const order = { active: 0, 'on-hold': 1, done: 2 };
 			if (order[a.status] !== order[b.status]) return order[a.status] - order[b.status];
 			return a.name.localeCompare(b.name);
@@ -27,7 +30,7 @@
 	function newProject() {
 		const p = projects.add({
 			name: '',
-			areaId: null,
+			areaId: areas.areas[0]?.id ?? null,
 			personaId: null,
 			dueDate: null,
 			description: null,

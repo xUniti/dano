@@ -6,6 +6,7 @@
 	import { TASK_COLUMNS, taskStatus, PRIORITIES, type Task } from '$lib/tasks/types';
 	import { persona } from '$lib/persona/store.svelte';
 	import { fullName } from '$lib/persona/types';
+	import { areas } from '$lib/areas/store.svelte';
 	import { notes as noteStore } from '$lib/notes/store.svelte';
 	import { page } from '$app/state';
 	import { goto } from '$app/navigation';
@@ -18,7 +19,8 @@
 		Plus,
 		List as ListIcon,
 		LayoutGrid,
-		StickyNote
+		StickyNote,
+		Archive
 	} from '@lucide/svelte';
 
 	const project = $derived(projects.get(page.params.id ?? ''));
@@ -27,6 +29,7 @@
 	let status = $state<ProjectStatus>('active');
 	let due = $state('');
 	let personaId = $state('');
+	let areaId = $state('');
 	let description = $state('');
 
 	let loadedId = '';
@@ -37,6 +40,11 @@
 			status = project.status;
 			due = project.dueDate ?? '';
 			personaId = project.personaId ?? '';
+			areaId = project.areaId ?? '';
+			if (!areaId && areas.areas[0]) {
+				areaId = areas.areas[0].id;
+				persist({ areaId });
+			}
 			description = project.description ?? '';
 		}
 	});
@@ -45,9 +53,11 @@
 		if (project) projects.update(project.id, patch);
 	}
 
-	const projectTasks = $derived(project ? tasks.tasks.filter((t) => t.projectId === project.id) : []);
+	const projectTasks = $derived(
+		project ? tasks.tasks.filter((t) => t.projectId === project.id && !t.archived) : []
+	);
 	const projectNotes = $derived(
-		project ? noteStore.notes.filter((n) => n.projectId === project.id) : []
+		project ? noteStore.notes.filter((n) => n.projectId === project.id && !n.archived) : []
 	);
 
 	let taskView = $state<'list' | 'board'>('list');
@@ -89,6 +99,10 @@
 		if (project) projects.remove(project.id);
 		goto('/projects');
 	}
+	function archive() {
+		if (project) projects.update(project.id, { archived: true });
+		goto('/projects');
+	}
 </script>
 
 <div class="page">
@@ -112,9 +126,11 @@
 					{#each PROJECT_STATUSES as s (s.value)}<option value={s.value}>{s.label}</option>{/each}
 				</select>
 			</div>
-			<div class="drow muted">
+			<div class="drow">
 				<span class="k"><Layers size={14} strokeWidth={1.75} aria-hidden="true" /> Area</span>
-				<span class="soon">arrives with Areas</span>
+				<select class="v" bind:value={areaId} onchange={() => persist({ areaId: areaId || null })}>
+					{#each areas.areas as a (a.id)}<option value={a.id}>{a.name}</option>{/each}
+				</select>
 			</div>
 			<div class="drow">
 				<span class="k">Due date</span>
@@ -217,6 +233,7 @@
 		</section>
 
 		<div class="footer">
+			<Button icon={Archive} onclick={archive}>Archive</Button>
 			<Button variant="danger" icon={Trash2} onclick={del}>Delete project</Button>
 		</div>
 	{/if}
@@ -279,10 +296,6 @@
 		gap: 5px;
 		font-size: var(--text-sm);
 		color: var(--text-2);
-	}
-	.muted .soon {
-		font-size: var(--text-xs);
-		color: var(--text-3);
 	}
 	.v {
 		font: inherit;
@@ -522,6 +535,8 @@
 		color: var(--text-3);
 	}
 	.footer {
+		display: flex;
+		gap: var(--space-3);
 		margin-top: var(--space-7);
 	}
 	.empty {

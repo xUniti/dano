@@ -4,6 +4,7 @@
 	import '$lib/persona/calendar-source'; // registers birthdays as a calendar source
 	import '$lib/tasks/calendar-source'; // registers due tasks as a calendar source
 	import '$lib/projects/calendar-source'; // registers project due dates as a calendar source
+	import '$lib/areas/calendar-source'; // registers area due dates as a calendar source
 	import favicon from '$lib/assets/favicon.svg';
 	import AppShell from '$lib/shell/AppShell.svelte';
 

@@ -10,7 +10,8 @@ import {
 	Flame,
 	LayoutDashboard,
 	Search,
-	Settings
+	Settings,
+	Bell
 } from '@lucide/svelte';
 
 export type NavItem = {
@@ -29,10 +30,11 @@ export const nav: NavItem[] = [
 	{ href: '/tasks', label: 'Tasks', icon: ListChecks, ready: true, primary: true },
 	{ href: '/notes', label: 'Notes', icon: StickyNote, ready: true, primary: true },
 	{ href: '/projects', label: 'Projects', icon: FolderKanban, ready: true },
-	{ href: '/areas', label: 'Areas', icon: Layers, ready: false },
-	{ href: '/archive', label: 'Archive', icon: Archive, ready: false },
-	{ href: '/habits', label: 'Habits', icon: Flame, ready: false },
-	{ href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard, ready: false },
-	{ href: '/search', label: 'Search', icon: Search, ready: false },
+	{ href: '/areas', label: 'Areas', icon: Layers, ready: true },
+	{ href: '/archive', label: 'Archive', icon: Archive, ready: true },
+	{ href: '/habits', label: 'Habits', icon: Flame, ready: true },
+	{ href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard, ready: true },
+	{ href: '/search', label: 'Search', icon: Search, ready: true },
+	{ href: '/notifications', label: 'Notifications', icon: Bell, ready: true },
 	{ href: '/settings', label: 'Settings', icon: Settings, ready: true, primary: true }
 ];

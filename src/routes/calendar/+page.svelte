@@ -99,6 +99,10 @@
 			goto(`/projects/${item.eventId}`);
 			return;
 		}
+		if (item.source === 'area') {
+			goto(`/areas/${item.eventId}`);
+			return;
+		}
 		openEdit(item.eventId);
 	}
 	function closeSheet() {

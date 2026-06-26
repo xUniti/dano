@@ -9,6 +9,7 @@ export type Note = {
 	personaId?: string | null;
 	projectId?: string | null; // Projects — later phase
 	areaId?: string | null; // Areas — later phase
+	archived?: boolean;
 	createdAt: string;
 	updatedAt: string;
 };

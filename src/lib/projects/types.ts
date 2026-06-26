@@ -10,6 +10,7 @@ export type Project = {
 	dueDate?: string | null; // yyyy-mm-dd → shows on the calendar
 	description?: string | null;
 	status: ProjectStatus;
+	archived?: boolean;
 	createdAt: string;
 	updatedAt: string;
 };
