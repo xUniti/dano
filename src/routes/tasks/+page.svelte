@@ -32,7 +32,6 @@
 			priority: null,
 			personaId: null,
 			projectId: null,
-			noteIds: [],
 			notes: null
 		});
 		draft = '';

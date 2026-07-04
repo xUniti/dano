@@ -12,7 +12,6 @@ export type Task = {
 	personaId?: string | null; // linked contact (Persona)
 	projectId?: string | null; // linked project
 	areaId?: string | null; // linked area
-	noteIds?: string[]; // linked notes (Notes — later phase)
 	notes?: string | null; // free-form notes on the task
 	archived?: boolean;
 	createdAt: string;

@@ -18,23 +18,22 @@ export type NavItem = {
 	href: string;
 	label: string;
 	icon: Component;
-	ready: boolean;
 	/** Shown in the mobile bottom tab bar. */
 	primary?: boolean;
 };
 
-// Order follows the agreed build sequence. `ready` flips on as phases land.
+// Order follows the agreed build sequence.
 export const nav: NavItem[] = [
-	{ href: '/calendar', label: 'Calendar', icon: Calendar, ready: true, primary: true },
-	{ href: '/persona', label: 'Persona', icon: Users, ready: true, primary: true },
-	{ href: '/tasks', label: 'Tasks', icon: ListChecks, ready: true, primary: true },
-	{ href: '/notes', label: 'Notes', icon: StickyNote, ready: true, primary: true },
-	{ href: '/projects', label: 'Projects', icon: FolderKanban, ready: true },
-	{ href: '/areas', label: 'Areas', icon: Layers, ready: true },
-	{ href: '/archive', label: 'Archive', icon: Archive, ready: true },
-	{ href: '/habits', label: 'Habits', icon: Flame, ready: true },
-	{ href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard, ready: true },
-	{ href: '/search', label: 'Search', icon: Search, ready: true },
-	{ href: '/notifications', label: 'Notifications', icon: Bell, ready: true },
-	{ href: '/settings', label: 'Settings', icon: Settings, ready: true, primary: true }
+	{ href: '/calendar', label: 'Calendar', icon: Calendar, primary: true },
+	{ href: '/persona', label: 'Persona', icon: Users, primary: true },
+	{ href: '/tasks', label: 'Tasks', icon: ListChecks, primary: true },
+	{ href: '/notes', label: 'Notes', icon: StickyNote, primary: true },
+	{ href: '/projects', label: 'Projects', icon: FolderKanban },
+	{ href: '/areas', label: 'Areas', icon: Layers },
+	{ href: '/archive', label: 'Archive', icon: Archive },
+	{ href: '/habits', label: 'Habits', icon: Flame },
+	{ href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
+	{ href: '/search', label: 'Search', icon: Search },
+	{ href: '/notifications', label: 'Notifications', icon: Bell },
+	{ href: '/settings', label: 'Settings', icon: Settings, primary: true }
 ];

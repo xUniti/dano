@@ -79,7 +79,6 @@
 			personaId: null,
 			projectId: null,
 			areaId: area.id,
-			noteIds: [],
 			notes: null
 		});
 		taskDraft = '';

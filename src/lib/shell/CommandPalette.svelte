@@ -48,7 +48,6 @@
 						<button onclick={() => choose(r.href)}>
 							<Icon size={16} strokeWidth={1.75} aria-hidden="true" />
 							<span>{r.label}</span>
-							{#if !r.ready}<span class="soon">soon</span>{/if}
 						</button>
 					</li>
 				{/each}
@@ -119,11 +118,6 @@
 	}
 	li button:hover {
 		background: var(--surface-2);
-	}
-	.soon {
-		margin-left: auto;
-		font-size: var(--text-xs);
-		color: var(--text-3);
 	}
 	.empty {
 		padding: 12px;

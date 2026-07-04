@@ -27,7 +27,6 @@ function seed(): Task[] {
 			priority: 'high',
 			personaId: null,
 			projectId: null,
-			noteIds: [],
 			notes: null
 		}),
 		make({
@@ -38,7 +37,6 @@ function seed(): Task[] {
 			priority: 'normal',
 			personaId: null,
 			projectId: null,
-			noteIds: [],
 			notes: null
 		}),
 		make({
@@ -49,7 +47,6 @@ function seed(): Task[] {
 			priority: 'low',
 			personaId: null,
 			projectId: null,
-			noteIds: [],
 			notes: null
 		})
 	];

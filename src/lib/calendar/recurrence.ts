@@ -1,7 +1,6 @@
 // Recurrence expansion. We keep a small structured model (covers the presets the
-// editor offers) and expand it locally — timezone-safe, dependency-free. A valid
-// RRULE string can be emitted for future interop with external calendars.
-import type { CalendarEvent, Recurrence, Weekday } from './types';
+// editor offers) and expand it locally — timezone-safe, dependency-free.
+import type { CalendarEvent, Recurrence } from './types';
 import { addDays, addMonths, endOfDay, startOfWeek, withTime } from './date';
 
 function* occurrences(start: Date, r: Recurrence): Generator<Date> {
@@ -63,17 +62,4 @@ export function expandEvent(
 		if (out.length > 400) break; // safety for huge ranges
 	}
 	return out;
-}
-
-const RRULE_DAYS = ['SU', 'MO', 'TU', 'WE', 'TH', 'FR', 'SA'];
-
-/** iCalendar RRULE string (for future external-calendar interop). */
-export function toRRule(r: Recurrence): string {
-	const parts = [`FREQ=${r.freq.toUpperCase()}`, `INTERVAL=${Math.max(1, r.interval)}`];
-	if (r.freq === 'weekly' && r.weekdays?.length) {
-		parts.push(`BYDAY=${r.weekdays.map((d: Weekday) => RRULE_DAYS[d]).join(',')}`);
-	}
-	if (r.count) parts.push(`COUNT=${r.count}`);
-	if (r.until) parts.push(`UNTIL=${r.until.replace(/-/g, '')}`);
-	return parts.join(';');
 }

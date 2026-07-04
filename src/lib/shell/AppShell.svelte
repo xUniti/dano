@@ -40,7 +40,6 @@
 					>
 						<Icon size={17} strokeWidth={1.75} aria-hidden="true" />
 						<span>{item.label}</span>
-						{#if !item.ready}<span class="soon">soon</span>{/if}
 					</a>
 				</li>
 			{/each}
@@ -122,11 +121,6 @@
 		background: var(--accent-tint);
 		color: var(--accent-strong);
 		font-weight: var(--weight-medium);
-	}
-	.soon {
-		margin-left: auto;
-		font-size: var(--text-xs);
-		color: var(--text-3);
 	}
 	.cmd {
 		margin-top: auto;

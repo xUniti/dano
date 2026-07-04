@@ -74,7 +74,6 @@
 			status: 'todo',
 			personaId: null,
 			projectId: project.id,
-			noteIds: [],
 			notes: null
 		});
 		taskDraft = '';
