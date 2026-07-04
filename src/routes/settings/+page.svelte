@@ -1,7 +1,22 @@
 <script lang="ts">
 	import { settings, type ThemeMode, type Density } from '$lib/settings.svelte';
+	import { exportData, importData } from '$lib/backup';
 	import { Button } from '$lib/ui';
-	import { RotateCcw } from '@lucide/svelte';
+	import { RotateCcw, Download, Upload } from '@lucide/svelte';
+
+	let fileInput = $state<HTMLInputElement | null>(null);
+	let importError = $state('');
+
+	async function onImport(e: Event) {
+		importError = '';
+		const file = (e.currentTarget as HTMLInputElement).files?.[0];
+		if (!file) return;
+		try {
+			await importData(file); // reloads on success
+		} catch (err) {
+			importError = err instanceof Error ? err.message : 'Could not read that file.';
+		}
+	}
 
 	const themes: { value: ThemeMode; label: string }[] = [
 		{ value: 'auto', label: 'Auto' },
@@ -85,6 +100,37 @@
 		{@render toggle2('motion', 'Reduce motion', 'Minimise animations', settings.reduceMotion, (v) => (settings.reduceMotion = v))}
 	</section>
 
+	<section aria-labelledby="data">
+		<h2 id="data">Your data</h2>
+
+		<div class="row">
+			<div class="label">
+				<span>Backup</span>
+				<small>Save everything to a file you keep</small>
+			</div>
+			<Button icon={Download} onclick={exportData}>Export</Button>
+		</div>
+
+		<div class="row">
+			<div class="label">
+				<span>Restore</span>
+				<small>Replace your data with a backup file</small>
+			</div>
+			<Button icon={Upload} onclick={() => fileInput?.click()}>Import</Button>
+		</div>
+
+		<input
+			bind:this={fileInput}
+			type="file"
+			accept="application/json"
+			class="sr-only"
+			aria-hidden="true"
+			tabindex="-1"
+			onchange={onImport}
+		/>
+		{#if importError}<p class="err" role="alert">{importError}</p>{/if}
+	</section>
+
 	<div class="reset">
 		<Button icon={RotateCcw} onclick={() => settings.reset()}>Reset to defaults</Button>
 	</div>
@@ -165,6 +211,11 @@
 		height: 18px;
 		accent-color: var(--accent);
 		flex: none;
+	}
+	.err {
+		margin: var(--space-3) 0 0;
+		font-size: var(--text-sm);
+		color: var(--danger);
 	}
 	.reset {
 		margin-top: var(--space-6);
