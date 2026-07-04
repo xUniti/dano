@@ -5,6 +5,7 @@
 	import { toLocalInput, toDateInput } from '$lib/calendar/date';
 	import { Button } from '$lib/ui';
 	import { Trash2 } from '@lucide/svelte';
+	import { trapFocus } from '$lib/trapFocus';
 
 	let {
 		open = $bindable(false),
@@ -124,9 +125,6 @@
 	function onkeydown(e: KeyboardEvent) {
 		if (e.key === 'Escape') onClose();
 	}
-	function autofocus(node: HTMLInputElement) {
-		node.focus();
-	}
 </script>
 
 {#if open}
@@ -139,12 +137,13 @@
 			tabindex="-1"
 			onclick={(e) => e.stopPropagation()}
 			{onkeydown}
+			use:trapFocus
 		>
 			<h2>{event ? 'Edit event' : 'New event'}</h2>
 
 			<label class="field">
 				<span>Title</span>
-				<input bind:value={title} placeholder="What is it?" use:autofocus />
+				<input bind:value={title} placeholder="What is it?" />
 			</label>
 
 			<label class="check">

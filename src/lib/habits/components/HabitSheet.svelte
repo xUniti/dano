@@ -3,6 +3,7 @@
 	import { habits } from '$lib/habits/store.svelte';
 	import { Button } from '$lib/ui';
 	import { Trash2 } from '@lucide/svelte';
+	import { trapFocus } from '$lib/trapFocus';
 
 	let {
 		open = $bindable(false),
@@ -55,9 +56,6 @@
 	function onkeydown(e: KeyboardEvent) {
 		if (e.key === 'Escape') onClose();
 	}
-	function autofocus(node: HTMLInputElement) {
-		node.focus();
-	}
 </script>
 
 {#if open}
@@ -70,12 +68,13 @@
 			tabindex="-1"
 			onclick={(e) => e.stopPropagation()}
 			{onkeydown}
+			use:trapFocus
 		>
 			<h2>{habit ? 'Edit habit' : 'New habit'}</h2>
 
 			<label class="field">
 				<span>Name</span>
-				<input bind:value={name} placeholder="e.g. Drink water" use:autofocus />
+				<input bind:value={name} placeholder="e.g. Drink water" />
 			</label>
 
 			<div class="field">

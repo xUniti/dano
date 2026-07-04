@@ -3,6 +3,7 @@
 	import { persona } from '$lib/persona/store.svelte';
 	import { Button } from '$lib/ui';
 	import { Trash2 } from '@lucide/svelte';
+	import { trapFocus } from '$lib/trapFocus';
 
 	let {
 		open = $bindable(false),
@@ -69,9 +70,6 @@
 	function onkeydown(e: KeyboardEvent) {
 		if (e.key === 'Escape') onClose();
 	}
-	function autofocus(node: HTMLInputElement) {
-		node.focus();
-	}
 </script>
 
 {#if open}
@@ -84,11 +82,12 @@
 			tabindex="-1"
 			onclick={(e) => e.stopPropagation()}
 			{onkeydown}
+			use:trapFocus
 		>
 			<h2>{person ? 'Edit person' : 'New person'}</h2>
 
 			<div class="two">
-				<label class="field"><span>First name</span><input bind:value={firstName} use:autofocus /></label>
+				<label class="field"><span>First name</span><input bind:value={firstName} /></label>
 				<label class="field"><span>Last name</span><input bind:value={lastName} /></label>
 			</div>
 

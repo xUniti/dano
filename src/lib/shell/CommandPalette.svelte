@@ -2,6 +2,7 @@
 	import { goto } from '$app/navigation';
 	import { Search } from '@lucide/svelte';
 	import { nav } from '$lib/nav';
+	import { trapFocus } from '$lib/trapFocus';
 
 	let { open = $bindable(false) }: { open?: boolean } = $props();
 
@@ -21,9 +22,6 @@
 	function onkeydown(e: KeyboardEvent) {
 		if (e.key === 'Escape') close();
 	}
-	function autofocus(node: HTMLInputElement) {
-		node.focus();
-	}
 </script>
 
 {#if open}
@@ -36,10 +34,11 @@
 			tabindex="-1"
 			onclick={(e) => e.stopPropagation()}
 			{onkeydown}
+			use:trapFocus
 		>
 			<div class="search">
 				<Search size={16} strokeWidth={1.75} aria-hidden="true" />
-				<input placeholder="Jump to…" aria-label="Jump to" bind:value={query} use:autofocus />
+				<input placeholder="Jump to…" aria-label="Jump to" bind:value={query} />
 			</div>
 			<ul>
 				{#each results as r (r.href)}
