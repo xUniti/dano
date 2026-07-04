@@ -11,8 +11,8 @@
 	--surface-3: #eeeee8;
 
 	--text-1: #20251f;
-	--text-2: #6b6f68;
-	--text-3: #9a9e97;
+	--text-2: #565a53;
+	--text-3: #6b6f67;
 	--text-on-accent: #ffffff;
 
 	--border: rgba(24, 32, 22, 0.1);
@@ -47,7 +47,7 @@
 
 		--text-1: #ecede7;
 		--text-2: #a7aaa1;
-		--text-3: #797c74;
+		--text-3: #8b8e85;
 		--text-on-accent: #14160f;
 
 		--border: rgba(255, 255, 255, 0.1);
@@ -79,7 +79,7 @@
 	--surface-3: #2d2f27;
 	--text-1: #ecede7;
 	--text-2: #a7aaa1;
-	--text-3: #797c74;
+	--text-3: #8b8e85;
 	--text-on-accent: #14160f;
 	--border: rgba(255, 255, 255, 0.1);
 	--border-strong: rgba(255, 255, 255, 0.2);
