@@ -95,6 +95,7 @@
 		return PRIORITIES.find((x) => x.value === t.priority)?.color ?? 'transparent';
 	}
 	function del() {
+		if (!confirm('Delete this project? This cannot be undone.')) return;
 		if (project) projects.remove(project.id);
 		goto('/projects');
 	}

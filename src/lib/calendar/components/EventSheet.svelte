@@ -116,6 +116,7 @@
 	}
 
 	function del() {
+		if (!confirm('Delete this event? This cannot be undone.')) return;
 		if (event) calendar.remove(event.id);
 		onClose();
 	}

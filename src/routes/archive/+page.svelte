@@ -26,7 +26,7 @@
 						<button class="act" onclick={() => tasks.update(t.id, { archived: false })} aria-label="Restore">
 							<RotateCcw size={15} strokeWidth={1.75} aria-hidden="true" />
 						</button>
-						<button class="act danger" onclick={() => tasks.remove(t.id)} aria-label="Delete permanently">
+						<button class="act danger" onclick={() => { if (confirm('Permanently delete this? This cannot be undone.')) tasks.remove(t.id); }} aria-label="Delete permanently">
 							<Trash2 size={15} strokeWidth={1.75} aria-hidden="true" />
 						</button>
 					</div>
@@ -43,7 +43,7 @@
 						<button class="act" onclick={() => projects.update(p.id, { archived: false })} aria-label="Restore">
 							<RotateCcw size={15} strokeWidth={1.75} aria-hidden="true" />
 						</button>
-						<button class="act danger" onclick={() => projects.remove(p.id)} aria-label="Delete permanently">
+						<button class="act danger" onclick={() => { if (confirm('Permanently delete this? This cannot be undone.')) projects.remove(p.id); }} aria-label="Delete permanently">
 							<Trash2 size={15} strokeWidth={1.75} aria-hidden="true" />
 						</button>
 					</div>
@@ -60,7 +60,7 @@
 						<button class="act" onclick={() => notes.update(n.id, { archived: false })} aria-label="Restore">
 							<RotateCcw size={15} strokeWidth={1.75} aria-hidden="true" />
 						</button>
-						<button class="act danger" onclick={() => notes.remove(n.id)} aria-label="Delete permanently">
+						<button class="act danger" onclick={() => { if (confirm('Permanently delete this? This cannot be undone.')) notes.remove(n.id); }} aria-label="Delete permanently">
 							<Trash2 size={15} strokeWidth={1.75} aria-hidden="true" />
 						</button>
 					</div>

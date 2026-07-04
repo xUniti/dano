@@ -87,6 +87,7 @@
 		tasks.update(t.id, { done: !t.done, status: !t.done ? 'done' : 'todo' });
 	}
 	function del() {
+		if (!confirm('Delete this area? This cannot be undone.')) return;
 		if (area) areas.remove(area.id);
 		goto('/areas');
 	}

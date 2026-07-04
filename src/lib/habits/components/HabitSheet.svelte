@@ -48,6 +48,7 @@
 		onClose();
 	}
 	function del() {
+		if (!confirm('Delete this habit? This cannot be undone.')) return;
 		if (habit) habits.remove(habit.id);
 		onClose();
 	}

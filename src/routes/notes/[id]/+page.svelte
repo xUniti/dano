@@ -51,6 +51,7 @@
 		persist({ tags: $state.snapshot(tags) });
 	}
 	function del() {
+		if (!confirm('Delete this note? This cannot be undone.')) return;
 		if (note) notes.remove(note.id);
 		goto('/notes');
 	}

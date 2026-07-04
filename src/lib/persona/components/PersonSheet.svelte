@@ -62,6 +62,7 @@
 		onClose();
 	}
 	function del() {
+		if (!confirm('Delete this contact? This cannot be undone.')) return;
 		if (person) persona.remove(person.id);
 		onClose();
 	}

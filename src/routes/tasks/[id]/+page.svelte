@@ -40,6 +40,7 @@
 		if (task) tasks.update(task.id, patch);
 	}
 	function del() {
+		if (!confirm('Delete this task? This cannot be undone.')) return;
 		if (task) tasks.remove(task.id);
 		goto('/tasks');
 	}
