@@ -1,5 +1,9 @@
 node_modules
 
+# Editor / tooling config (never publish)
+.claude/
+.vscode/
+
 # Output
 .output
 .vercel
