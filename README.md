@@ -11,12 +11,11 @@ Windows · macOS · Linux · phone coming soon
 
 </div>
 
-<!--
-  Screenshots go here, right below the header, before any other text.
-  A short GIF of the calendar plus one still of the task view has the most
-  impact. Drop the files in docs/ or static/ and link them here once the
-  first release is ready.
--->
+<div align="center">
+
+![DANO calendar](docs/calendar.png)
+
+</div>
 
 ## What it does
 
@@ -27,6 +26,10 @@ Windows · macOS · Linux · phone coming soon
 - Habits you tick off day by day, with streaks.
 - A dashboard for what matters today, plus reminders when something is overdue.
 - Search that covers all of it at once.
+
+| Dashboard | Tasks |
+| --- | --- |
+| ![DANO dashboard](docs/dashboard.png) | ![DANO tasks](docs/tasks.png) |
 
 ## Your data stays yours
 
