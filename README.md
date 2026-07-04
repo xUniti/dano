@@ -27,9 +27,10 @@ Windows · macOS · Linux · phone coming soon
 - A dashboard for what matters today, plus reminders when something is overdue.
 - Search that covers all of it at once.
 
-| Dashboard | Tasks |
+|  |  |
 | --- | --- |
 | ![DANO dashboard](docs/dashboard.png) | ![DANO tasks](docs/tasks.png) |
+| ![DANO habits](docs/habits.png) | ![DANO notes](docs/notes.png) |
 
 ## Your data stays yours
 
@@ -38,6 +39,12 @@ Your data lives on your device. No account to create, and nothing gets uploaded 
 ## Made for everyone
 
 DANO is built for people who find most apps tiring or overwhelming. The interface is calm and compact instead of large and empty, with one soft green accent and thin, quiet lines. You can change the density, theme, contrast, and text size, and switch on reading aids when you want them. Making the app usable for everyone was the point from the first screen, not an afterthought.
+
+DANO comes in light and dark:
+
+| Light | Dark |
+| --- | --- |
+| ![Calendar in light mode](docs/calendar.png) | ![Calendar in dark mode](docs/calendar-dark.png) |
 
 ## Download
 
