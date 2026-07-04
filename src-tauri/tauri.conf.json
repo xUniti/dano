@@ -13,8 +13,11 @@
     "windows": [
       {
         "title": "DANO",
-        "width": 800,
-        "height": 600,
+        "width": 1100,
+        "height": 760,
+        "minWidth": 720,
+        "minHeight": 500,
+        "center": true,
         "resizable": true,
         "fullscreen": false
       }
@@ -26,6 +29,11 @@
   "bundle": {
     "active": true,
     "targets": "all",
+    "category": "Productivity",
+    "shortDescription": "A local-first Life OS.",
+    "longDescription": "DANO keeps your calendar, tasks, notes, projects, and habits in one place. It runs on your own computer, works offline, and keeps your data to yourself.",
+    "copyright": "Copyright (c) 2026 xUniti",
+    "license": "MIT",
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",
